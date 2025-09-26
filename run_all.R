@@ -1,6 +1,22 @@
 source("/projects/opioid/Rmultiome/Rmultiome-main.R")
 source("/projects/opioid/Rmultiome/settings.R")
 
+#The intent of this script is to be able to be run after you've selected all
+#settings, done all QC, and this script will re-create your DE/DA/etc results
+#from the raw output of cellranger-atac.  Step1 is not this file!  Step1 is to
+#use run_base_QC.R and establish your pipeline1 settings, as stored in settings.R
+#If you use run_all.R multiple times with settings tailored for your data, and
+#the end results change, then you either have a data stability problem you haven't
+#resolved yet, your 1D/KDE trimming is not correct, or you need to select different
+#dims/knn/resolution during FMMN and clustering.
+
+# If your biological goal is data that is "good enough" to inform another process,
+# and the observed changes between runs fall within a threshold acceptable for your
+# research context, then some small degree of variability may be tolerable.
+# However, if your intent is a fully deterministic pipeline, any change in results
+# between runs is a strong indicator of unresolved issues in data stability,
+# preprocessing, or parameter selection.
+
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
 missing <- setdiff(samplelist, trimming_settings$sample)
@@ -22,8 +38,6 @@ for (sample in samplelist) {
     base_obj <- base_object(sample)
     print("Adding chromosome mapping information to ATAC assay.")
     base_obj <- chromosome_mapping(base_obj, rna_annos = EnsDbAnnos)
-    print("Removing non-standard chromosomes from ATAC and RNA.")
-    base_obj <- remove_nonstandard_chromosomes(base_obj)
     base_obj <- update_provenance(base_obj, "raw_import")
     saveRDS(base_obj, base_path)
   } else {
@@ -105,20 +119,21 @@ for (sample in samplelist) {
 merged_data <- merge_sample_objects(samplelist)
 
 saveRDS(merged_data, "/projects/opioid/vault/merged_samples95.rds")
-#merged_data <- readRDS("/projects/opioid/vault/merged_samples.rds")
+#merged_data <- readRDS("/projects/opioid/vault/merged_samples95.rds")
 
 #post-merge RNA modality
 merged_data <- post_merge_rna(merged_data)
-#saveRDS(merged_data, "/projects/opioid/vault/postRNA95.rds")
-#merged_data <- readRDS("/projects/opioid/vault/postRNA95.rds")
 
 #post-merge ATAC modality
 merged_data <- post_merge_atac(merged_data)
-saveRDS(merged_data, "/projects/opioid/vault/postATAC95.rds")
 
 #leaving this here in case you want to restart pre-harmony
 #merged_data <- readRDS("/projects/opioid/vault/postATAC.rds")
 DefaultAssay(merged_data) <- "RNA"
+
+#time for harmony and FindMultiModalNeighbors
+harmony_obj <- harmonize_both(merged_data, harmony_max_iter = 50)
+saveRDS(harmony_obj, "/projects/opioid/vault/harmonized.rds")
 
 #At this point you stop being production, and move to doing a parameter sweep to
 #find the right settings to use.  You will do most of the rest of these tasks
@@ -127,19 +142,11 @@ DefaultAssay(merged_data) <- "RNA"
 #back to differential analysis.  Don't return here until you know what to put on
 #the next lines for dims, knn, and resolution
 
-#time for harmony and FindMultiModalNeighbors
-harmony_obj <- harmonize_both(merged_data, harmony_max_iter = 50)
-saveRDS(harmony_obj, "/projects/opioid/vault/harmonized.rds")
+#harmony_obj <- readRDS("/projects/opioid/vault/harmonized.rds")
 
-#harmony_obj <- readRDS("/projects/opioid/vault96/harmonized.rds")
-
-rm(harmony_obj)
-rm(premap_obj)
-rm(labeled_obj)
-
-harmony_obj240_k40 <- FMMN_task(harmony_obj, dims_pca = 2:40, dims_harmony = 2:40, knn = 40)
-premap_obj <- cluster_data(harmony_obj240_k40, alg = 3, res = 0.04,
-                           cluster_dims = 2:40, cluster_seed = 1984)
+harmony_obj250_k40 <- FMMN_task(harmony_obj, dims_pca = 2:50, dims_harmony = 2:50, knn = 40)
+premap_obj <- cluster_data(harmony_obj250_k40, alg = 3, res = 0.1,
+                           cluster_dims = 2:50, cluster_seed = 1984)
 DimPlot(premap_obj,label=T, raster=FALSE)
 
 #adding file name info that corresponds to the resolution used for FindClusters

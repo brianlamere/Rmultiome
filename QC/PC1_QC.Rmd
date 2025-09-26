@@ -1,0 +1,44 @@
+---
+title: "PC1 testing"
+author: "Brian"
+date: "2025-09-26"
+output: html_document
+---
+
+# PC1 Technical Variation Assessment
+
+## Correlation Analysis
+
+PC1 was found to be strongly correlated with technical metrics, supporting its exclusion from downstream clustering analyses. In contrast, PC2 and higher PCs showed near-zero correlations with technical metrics, indicating they capture biological rather than technical variation.
+
+| Metric            | PC1 (r, 95% CI)           | PC2 (r, 95% CI)           | PC42 (r, 95% CI)         |
+|-------------------|--------------------------|---------------------------|--------------------------|
+| percent.mt        | 0.19 [0.18, 0.19]        | -0.10 [-0.10, -0.09]      | -0.02 [-0.02, -0.01]     |
+| nCount_RNA        | -0.66 [-0.66, -0.66]     | 0.02 [0.02, 0.03]         | -0.01 [-0.01, 0.00]      |
+| nFeature_RNA      | -0.77 [-0.77, -0.76]     | 0.06 [0.05, 0.06]         | 0.01 [0.01, 0.02]        |
+| TSS.enrichment    | 0.53 [0.53, 0.53]        | -0.01 [-0.01, 0.00]       | 0.01 [0.00, 0.01]        |
+| nCount_ATAC       | -0.27 [-0.27, -0.26]     | -0.00 [-0.01, 0.00]       | 0.01 [0.00, 0.01]        |
+| nFeature_ATAC     | -0.31 [-0.31, -0.30]     | -0.02 [-0.02, -0.01]      | 0.01 [0.00, 0.01]        |
+
+- **PC1:** Strong correlation with technical metrics (especially nCount_RNA, nFeature_RNA, TSS.enrichment).
+- **PC2, PC42:** Negligible correlations, indicating minimal technical influence.
+
+## Parameter Sweep Validation
+
+Clustering parameter sweeps consistently showed that **removing PC1** (using dims 2:50 instead of 1:50) increased the number of clusters and altered UMAP appearance, confirming that PC1 captures technical rather than biological variation.
+
+**Cluster counts:**
+
+| dims      | knn | resolution | clusters with PC1 | clusters without PC1 |
+|-----------|-----|------------|-------------------|----------------------|
+| 1:50      | 20  | 0.1        | 32                | 34                   |
+| 1:50      | 30  | 0.1        | 24                | 27                   |
+| 1:50      | 40  | 0.1        | 22                | 26                   |
+
+
+- With all other settings constant, **removing PC1 consistently increased cluster count and improved separation in UMAP plots**.
+
+## Conclusion
+
+- **PC1 should be excluded from downstream clustering and UMAP analyses** due to its strong association with technical metrics.
+- **PC2 and higher** are suitable for capturing biological variation in this dataset.

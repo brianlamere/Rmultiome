@@ -132,3 +132,44 @@ summarize_results <- function(results) {
   })
   do.call(rbind, metrics)
 }
+
+update_trimming_settings_in_file <- function(settings_file, my_trimming_settings) {
+  # Source the settings file to get trimming_settings
+  source(settings_file, local = TRUE)
+  ts <- trimming_settings
+  
+  sample_name <- my_trimming_settings$sample
+  
+  # Build a data.frame row with the correct structure/order
+  new_row <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
+  # Ensure all columns present
+  for (col in setdiff(colnames(ts), names(my_trimming_settings))) {
+    new_row[[col]] <- NA
+  }
+  new_row <- new_row[, colnames(ts)]
+  
+  # Check if sample exists, update or add
+  if (sample_name %in% ts$sample) {
+    ts[ts$sample == sample_name, ] <- new_row
+  } else {
+    ts <- rbind(ts, new_row)
+  }
+  
+  # Sorting helper for mixed alphanumeric (e.g., LG2, LG10, LG100)
+  extract_num <- function(x) as.numeric(sub(".*?(\\d+)$", "\\1", x))
+  extract_prefix <- function(x) sub("(.*?)(\\d+)$", "\\1", x)
+  ts <- ts[order(extract_prefix(ts$sample), extract_num(ts$sample)), ]
+  
+  # Write out new trimming_settings block to settings_file
+  # Read the whole file
+  lines <- readLines(settings_file)
+  start_idx <- grep("trimming_settings <- data.frame\\(", lines)
+  end_idx <- grep("^\\s*\\)", lines[(start_idx+1):length(lines)]) + start_idx
+  # Compose new data.frame block
+  df_text <- capture.output(dput(ts))
+  df_text[1] <- "trimming_settings <- "  # replace with assignment
+  # Replace old block with new block
+  new_lines <- c(lines[1:(start_idx-1)], df_text, lines[(end_idx+1):length(lines)])
+  writeLines(new_lines, settings_file)
+  cat(sprintf("Updated trimming_settings for sample %s in %s\n", sample_name, settings_file))
+}

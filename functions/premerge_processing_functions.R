@@ -38,10 +38,32 @@ base_object <- function(samplename) {
   DefaultAssay(baseSeuratObj) <- "RNA"
   baseSeuratObj[["percent.mt"]] <- PercentageFeatureSet(baseSeuratObj, pattern = "^MT-")
   
-  baseSeuratObj$orig_barcode <- rownames(baseSeuratObj)
-  rownames(baseSeuratObj) <- paste0(rownames(baseSeuratObj), "_", baseSeuratObj$orig.ident)
-  
   return(baseSeuratObj)
+}
+
+base_qc_object <- function(sample, EnsDbAnnos, save = FALSE) {
+  cat(sprintf("\nProcessing sample: %s\n", sample))
+  base_path <- get_rds_path(sample, "base")
+  
+  base_obj <- base_object(sample)
+  
+  cat("Adding chromosome mapping information to ATAC assay.\n")
+  base_obj <- chromosome_mapping(base_obj, rna_annos = EnsDbAnnos)
+  
+  DefaultAssay(base_obj) <- "ATAC"
+  
+  cat("Calculating Nucleosome Signal...\n")
+  base_obj <- NucleosomeSignal(base_obj)
+  
+  cat("Calculating TSS Enrichment...\n")
+  base_obj <- TSSEnrichment(base_obj)
+  
+  if (save) {
+    saveRDS(base_obj, base_path)
+    cat(sprintf("Saved base object to: %s\n", base_path))
+  }
+  
+  return(base_obj)
 }
 
 #' Annotate RNA features by EnsDb annotation and ATAC peaks by parsing peak names (hyphen format).
@@ -53,14 +75,17 @@ base_object <- function(samplename) {
 chromosome_mapping <- function(seurat_obj, rna_annos, warn_threshold = 16000) {
   # RNA: Map gene symbols to chromosomes using annotation
   if (!is.null(seurat_obj[["RNA"]])) {
-    gene_symbols <- rownames(seurat_obj[["RNA"]])
-    anno_gene_names <- mcols(rna_annos)$gene_name
+    feature_names <- rownames(seurat_obj[["RNA"]])
+    anno_symbols <- mcols(rna_annos)$gene_name
+    #anno_ensembl <- mcols(rna_annos)$gene_id # or $gene_id depending on EnsDb version
     anno_chroms <- as.character(seqnames(rna_annos))
-    chrom_vec <- anno_chroms[match(gene_symbols, anno_gene_names)]
-    names(chrom_vec) <- gene_symbols
+    
+    chrom_vec <- anno_chroms[match(feature_names, anno_symbols)]
+    names(chrom_vec) <- feature_names
     
     n_mapped <- sum(!is.na(chrom_vec))
     n_total <- length(chrom_vec)
+    
     if (n_mapped < warn_threshold) {
       warning(sprintf("chromosome_mapping (RNA): Only %d/%d features mapped to a chromosome (expected 18,000-24,000).", n_mapped, n_total))
     } else {
@@ -70,9 +95,9 @@ chromosome_mapping <- function(seurat_obj, rna_annos, warn_threshold = 16000) {
     # Ensure feature.info is a data.frame with rownames = feature names
     feature_info <- seurat_obj[["RNA"]]@misc$feature.info
     if (is.null(feature_info) || !is.data.frame(feature_info) || nrow(feature_info) == 0) {
-      feature_info <- data.frame(row.names = gene_symbols)
+      feature_info <- data.frame(row.names = feature_names)
     }
-    feature_info <- feature_info[gene_symbols, , drop=FALSE]
+    feature_info <- feature_info[feature_names, , drop=FALSE]
     feature_info$chromosome <- chrom_vec
     seurat_obj[["RNA"]]@misc$feature.info <- feature_info
   }
@@ -93,37 +118,6 @@ chromosome_mapping <- function(seurat_obj, rna_annos, warn_threshold = 16000) {
     message(sprintf("chromosome_mapping (ATAC): Chromosome parsed for %d peaks.", length(peak_names)))
   }
   
-  return(seurat_obj)
-}
-
-
-#' Remove features from RNA and ATAC assays not on standard chromosomes.
-#' Relies on @misc$feature.info$chromosome created by chromosome_mapping().
-#'
-#' @param seurat_obj Seurat object.
-#' @param standard_chroms Chromosomes to keep (default: chr1-22, X, Y).
-#' @return Filtered Seurat object.
-remove_nonstandard_chromosomes <- function(
-    seurat_obj,
-    standard_chroms = paste0("chr", c(1:22, "X", "Y"))
-) {
-  for (assay in c("RNA", "ATAC")) {
-    if (!is.null(seurat_obj[[assay]])) {
-      featinfo <- seurat_obj[[assay]]@misc$feature.info
-      if (!is.null(featinfo) && "chromosome" %in% colnames(featinfo)) {
-        keep <- rownames(featinfo)[featinfo$chromosome %in% standard_chroms]
-        message(sprintf("%s: Keeping %d of %d features on standard chromosomes.", assay, length(keep), nrow(featinfo)))
-        if (length(keep) == 0) {
-          warning(sprintf("No features left in %s after filtering. Skipping subsetting.", assay))
-        } else {
-          seurat_obj[[assay]] <- subset(seurat_obj[[assay]], features = keep)
-          seurat_obj[[assay]]@misc$feature.info <- featinfo[keep, , drop=FALSE]
-        }
-      } else {
-        warning(sprintf("No 'chromosome' column in %s feature.info; skipping filtering for %s.", assay, assay))
-      }
-    }
-  }
   return(seurat_obj)
 }
 

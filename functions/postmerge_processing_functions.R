@@ -47,6 +47,9 @@ FMMN_task <- function(FMMN_obj, dims_pca = 2:30, dims_harmony = 2:30, knn = 40) 
     object = FMMN_obj,
     reduction.list = list("pca", "harmony"),
     k.nn = knn,
+    knn.graph.name = "wknn",
+    snn.graph.name = "wsnn",
+    weighted.nn.name = "weighted.nn",
     dims.list = list(dims_pca, dims_harmony)
   )
   return(FMMN_obj)
@@ -91,10 +94,9 @@ cluster_data <- function(harmony_obj, alg = 3, res = 0.4, cluster_dims = 2:50,
   
   harmony_obj <- RunUMAP(
     harmony_obj,
-    nn.name = "weighted.nn",
+    nn.name = "weighted.nn",            # This matches weighted.nn.name above
     reduction.name = "wnn.umap",
-    reduction.key = "wnnUMAP_",
-    dims = cluster_dims
+    reduction.key = "wnnUMAP_"
   )
   return(harmony_obj)
 }
