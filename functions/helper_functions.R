@@ -173,3 +173,45 @@ update_trimming_settings_in_file <- function(settings_file, my_trimming_settings
   writeLines(new_lines, settings_file)
   cat(sprintf("Updated trimming_settings for sample %s in %s\n", sample_name, settings_file))
 }
+
+verify_trimming_settings_file_changes <- function(settings_file, my_trimming_settings) {
+  # Source the settings file to get trimming_settings
+  source(settings_file, local = TRUE)
+  ts <- trimming_settings
+  sample_name <- my_trimming_settings$sample
+  
+  # Check if sample exists
+  if (!(sample_name %in% ts$sample)) {
+    cat(sprintf("Sample '%s' is a new entry. Settings to be added:\n", sample_name))
+    print(my_trimming_settings)
+    return(invisible(NULL))
+  }
+  
+  # Sample exists, compare fields
+  existing_row <- ts[ts$sample == sample_name, ]
+  changed_fields <- list()
+  for (field in names(my_trimming_settings)) {
+    if (field %in% colnames(existing_row)) {
+      old_val <- existing_row[[field]]
+      new_val <- my_trimming_settings[[field]]
+      # Use identical for NA-safe comparison
+      if (!identical(old_val, new_val)) {
+        changed_fields[[field]] <- list(
+          old = old_val,
+          new = new_val
+        )
+      }
+    }
+  }
+  if (length(changed_fields) == 0) {
+    cat(sprintf("No changes for sample '%s'.\n", sample_name))
+  } else {
+    cat(sprintf("Changes for sample '%s':\n", sample_name))
+    for (field in names(changed_fields)) {
+      cat(sprintf("  %s: %s -> %s\n", field,
+                  as.character(changed_fields[[field]]$old),
+                  as.character(changed_fields[[field]]$new)))
+    }
+  }
+  invisible(NULL)
+}

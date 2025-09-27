@@ -1,5 +1,6 @@
-source("/projects/opioid/Rmultiome/Rmultiome-main.R")
-source("/projects/opioid/Rmultiome/settings.R")
+source("/projects/opioid/Rmultiome/system_settings.R")
+source(file.path(Rmultiome_path, "Rmultiome-main.R"))
+source(file.path(project_outdir, "project_settings.R"))
 
 EnsDbAnnos <- loadannotations()
 
@@ -45,3 +46,6 @@ QCDensity_ATAC(trimmed_obj)
 QCDensity_RNA(trimmed_obj)
 QCVlnA(trimmed_obj)
 QCVlnR(trimmed_obj)
+
+verify_trimming_settings_file_changes("/projects/opioid/Rmultiome/settings.R", my_trimming_settings)
+update_trimming_settings_in_file("/projects/opioid/Rmultiome/settings.R", my_trimming_settings)
