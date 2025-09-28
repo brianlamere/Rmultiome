@@ -9,13 +9,15 @@ QCDensity_ATAC <- function(seurat_obj) {
                                     log_x = TRUE,
                                     quantiles = TRUE
   ) +
-    ggtitle(paste("ATAC counts + TSS density plot for ",
-                  seurat_obj@project.name,
-                  " for debris and doublets")) + 
+    labs(
+      title = paste("ATAC counts + TSS density plot for ",
+                    seurat_obj@project.name,
+                    " for debris and doublets")
+    ) +
     stat_density_2d(
       color = "red",
-      size = 1,
-      bins = 6, # Increase bins for smoother contours
+      linewidth = 1,   # updated from size
+      bins = 6,
       contour = TRUE
     )
   nFA_TSS_density <- DensityScatter(seurat_obj,
@@ -24,12 +26,13 @@ QCDensity_ATAC <- function(seurat_obj) {
                                     log_x = TRUE,
                                     quantiles = TRUE
   ) +
-    ggtitle(paste("ATAC features + TSS density plot for ",
+    labs(
+    title = paste("ATAC features + TSS density plot for ",
                   seurat_obj@project.name,
                   " for debris and doublets")) + 
     stat_density_2d(
       color = "red",
-      size = 1,
+      linewidth = 1,
       bins = 6, # Increase bins for smoother contours
       contour = TRUE
     )
@@ -38,12 +41,13 @@ QCDensity_ATAC <- function(seurat_obj) {
                                     y = 'TSS.enrichment',
                                     quantiles = TRUE
   ) +
-    ggtitle(paste("nucleosome signal vs TSS enrichment density plot for ",
+    labs(
+    title = paste("nucleosome signal vs TSS enrichment density plot for ",
                   seurat_obj@project.name,
                   " to find nucleosome-rich cells")) + 
     stat_density_2d(
       color = "red",
-      size = 1,
+      linewidth = 1,
       bins = 6, # Increase bins for smoother contours
       contour = TRUE
     )
@@ -60,12 +64,13 @@ QCDensity_RNA <- function(seurat_obj) {
                                     log_y = TRUE,
                                     quantiles = c(5, 10, 50, 90, 95)
   ) +
-    ggtitle(paste("percent.mt + RNA counts density plot for ",
+    labs(
+      title = paste("percent.mt + RNA counts density plot for ",
                   seurat_obj@project.name,
                   " for cells with high mitochondrial content")) + 
     stat_density_2d(
       color = "red",
-      size = 1,
+      linewidth = 1,
       bins = 10, # Increase bins for smoother contours
       contour = TRUE
     )
@@ -75,12 +80,13 @@ QCDensity_RNA <- function(seurat_obj) {
                                     log_y = TRUE,
                                     quantiles = c(5, 10, 50, 90, 95)
   ) +
-    ggtitle(paste("percent.mt + RNA features density plot for ",
+    labs(
+    title = paste("percent.mt + RNA features density plot for ",
                   seurat_obj@project.name,
                   " for cells with high mitochondrial content")) + 
     stat_density_2d(
       color = "red",
-      size = 1,
+      linewidth = 1,
       bins = 10, # Increase bins for smoother contours
       contour = TRUE
     )

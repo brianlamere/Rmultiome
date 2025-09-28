@@ -1,6 +1,6 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
-source(file.path(project_outdir, "project_settings.R"))
+source(project_settings_file)
 
 #The intent of this script is to be able to be run after you've selected all
 #settings, done all QC, and this script will re-create your DE/DA/etc results

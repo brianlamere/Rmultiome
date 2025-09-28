@@ -1,6 +1,6 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
-source(file.path(project_outdir, "project_settings.R"))
+source(project_settings_file)
 
 EnsDbAnnos <- loadannotations()
 

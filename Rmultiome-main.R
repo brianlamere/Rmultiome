@@ -10,7 +10,7 @@ library(qlcMatrix)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(ggplot2)
 library(data.table)
-library(harmony, lib.loc = "/projects/Seurat4")
+#library(harmony, lib.loc = "/projects/Seurat4")
 library(future)
 library(MASS)
 source(file.path(Rmultiome_path, "functions", "premerge_processing_functions.R"))
@@ -19,7 +19,7 @@ source(file.path(Rmultiome_path, "functions", "postmerge_parameter_functions.R")
 source(file.path(Rmultiome_path, "functions", "premerge_parameter_functions.R"))
 source(file.path(Rmultiome_path, "functions", "helper_functions.R"))
 source(file.path(Rmultiome_path, "functions", "DE_functions.R"))
-
+source(file.path(Rmultiome_path, "functions", "qc_functions.R"))
 
 if (FALSE) {
   #dependencies that should be outside the main libdir, but I don't use venv.
