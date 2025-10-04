@@ -1,5 +1,6 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
+#you can manually change the next line if needed, or use location defined in system_settings.R
 source(project_settings_file)
 
 #At this point you stop being production, and move to doing a parameter sweep to

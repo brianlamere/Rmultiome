@@ -1,5 +1,6 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
+#you can manually change the next line if needed, or use location defined in system_settings.R
 source(project_settings_file)
 
 EnsDbAnnos <- loadannotations()
@@ -43,5 +44,8 @@ QCDensity_RNA(trimmed_obj)
 QCVlnA(trimmed_obj)
 QCVlnR(trimmed_obj)
 
-verify_trimming_settings_file_changes("/projects/opioid/Rmultiome/settings.R", my_trimming_settings)
-update_trimming_settings_in_file("/projects/opioid/Rmultiome/settings.R", my_trimming_settings)
+#if the new plots made in step6 still show change is needed, start back at step4
+
+#Once you are done, write to disk to save the settings
+verify_trimming_settings_file_changes(project_settings_file, my_trimming_settings)
+update_trimming_settings_in_file(project_settings_file, my_trimming_settings)

@@ -51,44 +51,6 @@ get_rds_path <- function(sample, milestone) {
   file.path(rdsdir, paste0(sample, "_", milestone, ".rds"))
 }
 
-#' Update trimming_settings for a specific sample.
-#'
-#' @param settings_df The trimming_settings data.frame.
-#' @param sample_name The sample name as stored in the 'sample' column.
-#' @param ... Named arguments with fields to update (e.g., nCAlt = 30000).
-#' @return Updated settings_df.
-#' @examples
-#' trimming_settings <- update_trimming_settings(trimming_settings, "Sample1", nCAlt = 25000, nCRlt = 7000)
-update_trimming_settings <- function(settings_df, sample_name, ...) {
-  # Check sample column exists
-  if (!"sample" %in% colnames(settings_df)) stop("settings_df must have a 'sample' column.")
-  args <- list(...)
-  # Only allow updating existing columns (except sample)
-  valid_cols <- setdiff(colnames(settings_df), "sample")
-  wrong_cols <- setdiff(names(args), valid_cols)
-  if (length(wrong_cols)) stop("Unknown columns in update: ", paste(wrong_cols, collapse=", "))
-  # Find row index for this sample
-  idx <- which(settings_df$sample == sample_name)
-  # If not present, add a new row
-  if (length(idx) == 0) {
-    new_row <- as.list(rep(NA, length(colnames(settings_df))))
-    names(new_row) <- colnames(settings_df)
-    new_row$sample <- sample_name
-    for (nm in names(args)) new_row[[nm]] <- args[[nm]]
-    settings_df <- rbind(settings_df, as.data.frame(new_row, stringsAsFactors = FALSE))
-    message(sprintf("Added new entry for sample '%s': %s", sample_name, 
-                    paste(sprintf("%s=%s", names(args), args), collapse=", ")))
-  } else {
-    # Update in place
-    old_vals <- as.list(settings_df[idx, names(args), drop = FALSE])
-    for (nm in names(args)) settings_df[idx, nm] <- args[[nm]]
-    message(sprintf("Updated sample '%s': %s", sample_name, 
-                    paste(sprintf("%s: %s -> %s", names(args), old_vals, args), collapse=", ")))
-  }
-  rownames(settings_df) <- NULL
-  return(settings_df)
-}
-
 #this just computes them mean percent of mitochondrial genes in an entire sample
 meanMT <- function(samplename) {
   return(mean(samplename@meta.data[["percent.mt"]], na.rm = TRUE))
@@ -131,6 +93,36 @@ summarize_results <- function(results) {
     )
   })
   do.call(rbind, metrics)
+}
+
+update_trimming_settings <- function(settings_df, sample_name, ...) {
+  # Check sample column exists
+  if (!"sample" %in% colnames(settings_df)) stop("settings_df must have a 'sample' column.")
+  args <- list(...)
+  # Only allow updating existing columns (except sample)
+  valid_cols <- setdiff(colnames(settings_df), "sample")
+  wrong_cols <- setdiff(names(args), valid_cols)
+  if (length(wrong_cols)) stop("Unknown columns in update: ", paste(wrong_cols, collapse=", "))
+  # Find row index for this sample
+  idx <- which(settings_df$sample == sample_name)
+  # If not present, add a new row
+  if (length(idx) == 0) {
+    new_row <- as.list(rep(NA, length(colnames(settings_df))))
+    names(new_row) <- colnames(settings_df)
+    new_row$sample <- sample_name
+    for (nm in names(args)) new_row[[nm]] <- args[[nm]]
+    settings_df <- rbind(settings_df, as.data.frame(new_row, stringsAsFactors = FALSE))
+    message(sprintf("Added new entry for sample '%s': %s", sample_name, 
+                    paste(sprintf("%s=%s", names(args), args), collapse=", ")))
+  } else {
+    # Update in place
+    old_vals <- as.list(settings_df[idx, names(args), drop = FALSE])
+    for (nm in names(args)) settings_df[idx, nm] <- args[[nm]]
+    message(sprintf("Updated sample '%s': %s", sample_name, 
+                    paste(sprintf("%s: %s -> %s", names(args), old_vals, args), collapse=", ")))
+  }
+  rownames(settings_df) <- NULL
+  return(settings_df)
 }
 
 update_trimming_settings_in_file <- function(settings_file, my_trimming_settings) {
@@ -216,74 +208,3 @@ verify_trimming_settings_file_changes <- function(settings_file, my_trimming_set
   invisible(NULL)
 }
 
-verify_trimming_settings <- function(trimming_settings, my_trimming_settings) {
-  sample_name <- my_trimming_settings$sample
-  existing_row <- trimming_settings[trimming_settings$sample == sample_name, ]
-  if (nrow(existing_row) == 0) {
-    cat(sprintf("Sample '%s' is new. No existing trimming settings.\n", sample_name))
-  } else {
-    cat(sprintf("Current settings for sample '%s':\n", sample_name))
-    print(existing_row)
-    cat("Proposed new settings:\n")
-    print(as.data.frame(my_trimming_settings, stringsAsFactors = FALSE))
-    # Show changes
-    changed <- sapply(names(my_trimming_settings), function(field) {
-      old <- existing_row[[field]]
-      new <- my_trimming_settings[[field]]
-      !identical(old, new)
-    })
-    if (any(changed)) {
-      cat("Fields that will change:\n")
-      print(names(my_trimming_settings)[changed])
-    } else {
-      cat("No changes detected for this sample.\n")
-    }
-  }
-}
-
-update_trimming_settings <- function(my_trimming_settings, project_settings_file) {
-  # Load current project_settings.R environment
-  settings_env <- new.env()
-  if (file.exists(project_settings_file)) {
-    sys.source(project_settings_file, envir = settings_env)
-  }
-  
-  # If trimming_settings doesn't exist, create a new data.frame
-  if (!exists("trimming_settings", envir = settings_env)) {
-    trimming_settings <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
-  } else {
-    trimming_settings <- settings_env$trimming_settings
-    sample_name <- my_trimming_settings$sample
-    idx <- which(trimming_settings$sample == sample_name)
-    if (length(idx) == 0) {
-      # Add new row
-      new_row <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
-      trimming_settings <- rbind(trimming_settings, new_row)
-      cat(sprintf("Added new settings for sample '%s'.\n", sample_name))
-    } else {
-      # Update existing row
-      for (field in names(my_trimming_settings)) {
-        trimming_settings[idx, field] <- my_trimming_settings[[field]]
-      }
-      cat(sprintf("Updated settings for sample '%s'.\n", sample_name))
-    }
-  }
-  
-  # Update or create other project settings variables as needed here
-  # ...
-  
-  # Write back to project_settings.R (overwrite the file)
-  dump(
-    list = ls(settings_env), 
-    file = project_settings_file, 
-    envir = settings_env
-  )
-  # Always include trimming_settings in the output
-  dump(
-    list = "trimming_settings", 
-    file = project_settings_file, 
-    append = TRUE
-  )
-  
-  return(trimming_settings)
-}

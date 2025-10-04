@@ -1,5 +1,6 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
+#you can manually change the next line if needed, or use location defined in system_settings.R
 source(project_settings_file)
 
 #The intent of this script is to be able to be run after you've selected all
