@@ -1,7 +1,5 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
-#you can manually change the next line if needed, or use location defined in system_settings.R
-source(project_settings_file)
 
 #The intent of this script is to be able to be run after you've selected all
 #settings, done all QC, and this script will re-create your DE/DA/etc results
@@ -20,6 +18,8 @@ source(project_settings_file)
 # preprocessing, or parameter selection.
 
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
+
+trimming_settings <- read_trimming_settings(trimming_settings_file)
 
 samplelist <- trimming_settings$sample
 
@@ -108,7 +108,40 @@ for (sample in samplelist) {
   } else {
     print("Files already present for this sample for pipeline1\n")
   }
-  #rm(x_atac, y_atac, x_rna, y_rna, dens_atac, dens_rna, pass_atac, pass_rna)
+  
+  # Step 6: Report and cleanup
+  report_path <- file.path("/projects/opioid/project_export", paste0(sample, "_pipeline1_report.txt"))
+  
+  # Gather trimming settings for this sample
+  this_trim <- trimming_settings[trimming_settings$sample == sample, , drop = FALSE]
+  
+  # Compose trimming settings as readable lines
+  trim_lines <- paste(sprintf("  %s = %s", names(this_trim), as.character(this_trim[1,])))
+  
+  # KDE trim settings (hard-coded or variables if you make them variable)
+  kde_lines <- c(
+    sprintf("  atac_percentile = %s", 0.95),
+    sprintf("  rna_percentile = %s", 0.95),
+    sprintf("  combine_method = %s", "intersection")
+  )
+  
+  writeLines(c(
+    sprintf("Pipeline1 Sample Report for: %s", sample),
+    sprintf("Date: %s", Sys.time()),
+    "",
+    sprintf("Step 1: Cells at base (import): %d", nrow(base_obj@meta.data)),
+    sprintf("Step 2: Cells after 1D trim: %d", nrow(trim_obj@meta.data)),
+    sprintf("Step 3: Cells after KDE trim: %d", nrow(kde_obj@meta.data)),
+    "",
+    "The following initial trimming settings were used:",
+    trim_lines,
+    "",
+    "KDE trim settings:",
+    kde_lines,
+    "",
+    sprintf("Final object saved at: %s", pipeline1_path)
+  ), con = report_path)
+  
   gc() #R is obnoxious
   cat(sprintf("Sample %s completed successfully.\n", sample))
 }

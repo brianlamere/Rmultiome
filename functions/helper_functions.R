@@ -95,116 +95,68 @@ summarize_results <- function(results) {
   do.call(rbind, metrics)
 }
 
-update_trimming_settings <- function(settings_df, sample_name, ...) {
-  # Check sample column exists
-  if (!"sample" %in% colnames(settings_df)) stop("settings_df must have a 'sample' column.")
-  args <- list(...)
-  # Only allow updating existing columns (except sample)
-  valid_cols <- setdiff(colnames(settings_df), "sample")
-  wrong_cols <- setdiff(names(args), valid_cols)
-  if (length(wrong_cols)) stop("Unknown columns in update: ", paste(wrong_cols, collapse=", "))
-  # Find row index for this sample
-  idx <- which(settings_df$sample == sample_name)
-  # If not present, add a new row
-  if (length(idx) == 0) {
-    new_row <- as.list(rep(NA, length(colnames(settings_df))))
-    names(new_row) <- colnames(settings_df)
-    new_row$sample <- sample_name
-    for (nm in names(args)) new_row[[nm]] <- args[[nm]]
-    settings_df <- rbind(settings_df, as.data.frame(new_row, stringsAsFactors = FALSE))
-    message(sprintf("Added new entry for sample '%s': %s", sample_name, 
-                    paste(sprintf("%s=%s", names(args), args), collapse=", ")))
+init_trimming_settings <- function(trimming_settings_file){
+  if (file.exists(trimming_settings_file)) {
+    trimming_settings_init <- readRDS(trimming_settings_file)
   } else {
-    # Update in place
-    old_vals <- as.list(settings_df[idx, names(args), drop = FALSE])
-    for (nm in names(args)) settings_df[idx, nm] <- args[[nm]]
-    message(sprintf("Updated sample '%s': %s", sample_name, 
-                    paste(sprintf("%s: %s -> %s", names(args), old_vals, args), collapse=", ")))
+    trimming_settings_init <- NULL
   }
-  rownames(settings_df) <- NULL
-  return(settings_df)
+  return(trimming_settings_init)
 }
 
-update_trimming_settings_in_file <- function(settings_file, my_trimming_settings) {
-  # Source the settings file to get trimming_settings
-  source(settings_file, local = TRUE)
-  ts <- trimming_settings
-  
-  sample_name <- my_trimming_settings$sample
-  
-  # Build a data.frame row with the correct structure/order
-  new_row <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
-  # Ensure all columns present
-  for (col in setdiff(colnames(ts), names(my_trimming_settings))) {
-    new_row[[col]] <- NA
+read_trimming_settings <- function(trimming_settings_file){
+  if (!file.exists(trimming_settings_file)) {
+    stop(sprintf("Trimming settings file not found: %s", trimming_settings_file))
   }
-  new_row <- new_row[, colnames(ts)]
-  
-  # Check if sample exists, update or add
-  if (sample_name %in% ts$sample) {
-    ts[ts$sample == sample_name, ] <- new_row
-  } else {
-    ts <- rbind(ts, new_row)
-  }
-  
-  # Sorting helper for mixed alphanumeric (e.g., LG2, LG10, LG100)
-  extract_num <- function(x) as.numeric(sub(".*?(\\d+)$", "\\1", x))
-  extract_prefix <- function(x) sub("(.*?)(\\d+)$", "\\1", x)
-  ts <- ts[order(extract_prefix(ts$sample), extract_num(ts$sample)), ]
-  
-  # Write out new trimming_settings block to settings_file
-  # Read the whole file
-  lines <- readLines(settings_file)
-  start_idx <- grep("trimming_settings <- data.frame\\(", lines)
-  end_idx <- grep("^\\s*\\)", lines[(start_idx+1):length(lines)]) + start_idx
-  # Compose new data.frame block
-  df_text <- capture.output(dput(ts))
-  df_text[1] <- "trimming_settings <- "  # replace with assignment
-  # Replace old block with new block
-  new_lines <- c(lines[1:(start_idx-1)], df_text, lines[(end_idx+1):length(lines)])
-  writeLines(new_lines, settings_file)
-  cat(sprintf("Updated trimming_settings for sample %s in %s\n", sample_name, settings_file))
+  trimming_settings_read <- readRDS(trimming_settings_file)
+  return(trimming_settings_read)
 }
 
-verify_trimming_settings_file_changes <- function(settings_file, my_trimming_settings) {
-  # Source the settings file to get trimming_settings
-  source(settings_file, local = TRUE)
-  ts <- trimming_settings
+verify_trimming_settings <- function(trimming_settings, my_trimming_settings) {
   sample_name <- my_trimming_settings$sample
-  
-  # Check if sample exists
-  if (!(sample_name %in% ts$sample)) {
-    cat(sprintf("Sample '%s' is a new entry. Settings to be added:\n", sample_name))
-    print(my_trimming_settings)
-    return(invisible(NULL))
+  existing_row <- trimming_settings[trimming_settings$sample == sample_name, ]
+  if (nrow(existing_row) == 0) {
+    cat(sprintf("Sample '%s' is new. No existing trimming settings.\n", sample_name))
+  } else {
+    cat(sprintf("Current settings for sample '%s':\n", sample_name))
+    print(existing_row)
+    cat("Proposed new settings:\n")
+    # Reorder proposed settings to match the data frame's column order
+    print(as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)[, colnames(trimming_settings), drop = FALSE])
+    # Show changes
+    changed <- sapply(colnames(trimming_settings), function(field) {
+      old <- existing_row[[field]]
+      new <- my_trimming_settings[[field]]
+      !identical(old, new)
+    })
+    if (any(changed)) {
+      cat("Fields that will change:\n")
+      print(colnames(trimming_settings)[changed])
+    } else {
+      cat("No changes detected for this sample.\n")
+    }
   }
-  
-  # Sample exists, compare fields
-  existing_row <- ts[ts$sample == sample_name, ]
-  changed_fields <- list()
-  for (field in names(my_trimming_settings)) {
-    if (field %in% colnames(existing_row)) {
-      old_val <- existing_row[[field]]
-      new_val <- my_trimming_settings[[field]]
-      # Use identical for NA-safe comparison
-      if (!identical(old_val, new_val)) {
-        changed_fields[[field]] <- list(
-          old = old_val,
-          new = new_val
-        )
+}
+
+# Updates or adds a sample's settings in the in-memory data.frame
+update_trimming_settings <- function(trimming_settings, my_trimming_settings) {
+  sample_name <- my_trimming_settings$sample
+  if (is.null(trimming_settings)) {
+    trimming_settings <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
+  } else {
+    idx <- which(trimming_settings$sample == sample_name)
+    if (length(idx) == 0) {
+      # Add new row
+      trimming_settings <- rbind(trimming_settings, as.data.frame(my_trimming_settings, stringsAsFactors = FALSE))
+      cat(sprintf("Added new settings for sample '%s'.\n", sample_name))
+    } else {
+      # Update existing row
+      for (field in names(my_trimming_settings)) {
+        trimming_settings[idx, field] <- my_trimming_settings[[field]]
       }
+      cat(sprintf("Updated settings for sample '%s'.\n", sample_name))
     }
   }
-  if (length(changed_fields) == 0) {
-    cat(sprintf("No changes for sample '%s'.\n", sample_name))
-  } else {
-    cat(sprintf("Changes for sample '%s':\n", sample_name))
-    for (field in names(changed_fields)) {
-      cat(sprintf("  %s: %s -> %s\n", field,
-                  as.character(changed_fields[[field]]$old),
-                  as.character(changed_fields[[field]]$new)))
-    }
-  }
-  invisible(NULL)
+  rownames(trimming_settings) <- NULL
+  return(trimming_settings)
 }
-
