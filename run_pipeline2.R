@@ -31,7 +31,7 @@ cluster_to_celltype <- c(
   "3" = "Microglia",
   "4" = "GABAergic neurons",
   "5" = "GABAergic neurons",
-  "6" = "Oligodendrocyte precursor cells",
+  "6" = "Oligodendrocyte \nprecursor cells",
   "7" = "Endothelial",
   "8" = "Mature Neurons",
   "9" = "Unknown", # Myelinating Schwann Cells"
@@ -41,8 +41,11 @@ cluster_to_celltype <- c(
 )
 
 labeled_obj$celltypes <- cluster_to_celltype[as.character(labeled_obj$seurat_clusters)]
+labeled_obj$celltypes <- unname(cluster_to_celltype[as.character(labeled_obj$seurat_clusters)])
 
-DimPlot(labeled_obj, group.by = "celltypes", label = TRUE, raster=FALSE)
+p <- DimPlot(obj_no12, group.by = "celltypes", label = TRUE, raster=FALSE)
+
+p + coord_cartesian(xlim = c(-17, 10))
 
 #the below filters based on unassigned clusters.  Comment this out to not do that.
 assigned_cells <- WhichCells(labeled_obj, expression = celltypes != "")

@@ -215,3 +215,75 @@ verify_trimming_settings_file_changes <- function(settings_file, my_trimming_set
   }
   invisible(NULL)
 }
+
+verify_trimming_settings <- function(trimming_settings, my_trimming_settings) {
+  sample_name <- my_trimming_settings$sample
+  existing_row <- trimming_settings[trimming_settings$sample == sample_name, ]
+  if (nrow(existing_row) == 0) {
+    cat(sprintf("Sample '%s' is new. No existing trimming settings.\n", sample_name))
+  } else {
+    cat(sprintf("Current settings for sample '%s':\n", sample_name))
+    print(existing_row)
+    cat("Proposed new settings:\n")
+    print(as.data.frame(my_trimming_settings, stringsAsFactors = FALSE))
+    # Show changes
+    changed <- sapply(names(my_trimming_settings), function(field) {
+      old <- existing_row[[field]]
+      new <- my_trimming_settings[[field]]
+      !identical(old, new)
+    })
+    if (any(changed)) {
+      cat("Fields that will change:\n")
+      print(names(my_trimming_settings)[changed])
+    } else {
+      cat("No changes detected for this sample.\n")
+    }
+  }
+}
+
+update_trimming_settings <- function(my_trimming_settings, project_settings_file) {
+  # Load current project_settings.R environment
+  settings_env <- new.env()
+  if (file.exists(project_settings_file)) {
+    sys.source(project_settings_file, envir = settings_env)
+  }
+  
+  # If trimming_settings doesn't exist, create a new data.frame
+  if (!exists("trimming_settings", envir = settings_env)) {
+    trimming_settings <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
+  } else {
+    trimming_settings <- settings_env$trimming_settings
+    sample_name <- my_trimming_settings$sample
+    idx <- which(trimming_settings$sample == sample_name)
+    if (length(idx) == 0) {
+      # Add new row
+      new_row <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
+      trimming_settings <- rbind(trimming_settings, new_row)
+      cat(sprintf("Added new settings for sample '%s'.\n", sample_name))
+    } else {
+      # Update existing row
+      for (field in names(my_trimming_settings)) {
+        trimming_settings[idx, field] <- my_trimming_settings[[field]]
+      }
+      cat(sprintf("Updated settings for sample '%s'.\n", sample_name))
+    }
+  }
+  
+  # Update or create other project settings variables as needed here
+  # ...
+  
+  # Write back to project_settings.R (overwrite the file)
+  dump(
+    list = ls(settings_env), 
+    file = project_settings_file, 
+    envir = settings_env
+  )
+  # Always include trimming_settings in the output
+  dump(
+    list = "trimming_settings", 
+    file = project_settings_file, 
+    append = TRUE
+  )
+  
+  return(trimming_settings)
+}

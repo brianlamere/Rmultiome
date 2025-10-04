@@ -4,10 +4,6 @@ source(project_settings_file)
 
 EnsDbAnnos <- loadannotations()
 
-# Step 1: Configure settings.R (including samplelist) before starting QC
-print("Samples to process:")
-print(samplelist)
-
 mysample <- "LG05"
 
 # Step 2: Create base QC object

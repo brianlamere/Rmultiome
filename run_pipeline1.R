@@ -20,13 +20,7 @@ source(project_settings_file)
 
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
-missing <- setdiff(samplelist, trimming_settings$sample)
-if (length(missing) > 0) {
-  stop(
-    "These samples are in samplelist but missing in trimming_settings: ",
-    paste(missing, collapse = ", ")
-  )
-}
+samplelist <- trimming_settings$sample
 
 EnsDbAnnos <- loadannotations()
 
