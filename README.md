@@ -9,9 +9,9 @@ batch effects but no need to do things like redoing peaks, etc).
 ##Initial Setup
 1. Create a directory for the project.
 2. Inside the directory create a rawdata subdirectory, and inside this directory should be all the sample directories with the cellranger output. Follows are the only files this tool will actually be using from the cellranger output:
-`/projects/projectdir/sample1/atac_fragments.tsv.gz`
-`/projects/projectdir/sample1/atac_fragments.tsv.gz.tbi`
-`/projects/projectdir/sample1/filtered_feature_bc_matrix.h5`
+```/projects/projectdir/sample1/atac_fragments.tsv.gz
+/projects/projectdir/sample1/atac_fragments.tsv.gz.tbi
+/projects/projectdir/sample1/filtered_feature_bc_matrix.h5```
 3. clone the Rmultiome code repo:  
 `git clone https://github.com/brianlamere/Rmultiome`
 4. Rstudio won't want to go to a location outside of your home directory, because they don't like security, projects worked on by more than one person, projects that survive past one particular person, etc.  The easy way around this is to make a symbolic link in your home directory, to the project directory.  From the command line, type a command such as:
