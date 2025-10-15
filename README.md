@@ -5,10 +5,6 @@ Rebased after learning many of the vignettes that seem to apply, don't really
 for my particular data set (very high depth, brain nuclei, thus very strong 
 batch effects but no need to do things like redoing peaks, etc).
 
-A project goal is being able to do most or all of the steps on my local fairly
-substantial PC (192GB RAM, i9-13900k CPU, 8TB nvme raid) and anything that
-might need more than that, I have a x2eidn AWS instance with 512GB RAM.
-
 ## Configuration
 
 Project settings are stored in `settings.R`.  
