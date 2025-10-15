@@ -18,8 +18,11 @@ rdsdir <- file.path(project_base_dir, "vault")
 # Project output directory for reports, settings, etc.
 project_outdir <- file.path(project_base_dir, "project_export")
 
-# Project settings file
+# Project 1D settings file
 trimming_settings_file <- file.path(project_outdir, "trimming_settings.Rds")
+
+# Project KDE settings file
+kde_settings_file <- file.path(project_outdir, "kde_settings.Rds")
 
 # Reference files directory
 referencedir <- file.path(project_base_dir, "references")

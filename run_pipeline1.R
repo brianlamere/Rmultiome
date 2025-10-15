@@ -20,6 +20,7 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
 trimming_settings <- read_trimming_settings(trimming_settings_file)
+kde_settings <- init_kde_settings(kde_settings_file)
 
 samplelist <- trimming_settings$sample
 
@@ -35,7 +36,7 @@ for (sample in samplelist) {
     base_obj <- base_object(sample)
     print("Adding chromosome mapping information to ATAC assay.")
     base_obj <- chromosome_mapping(base_obj, rna_annos = EnsDbAnnos)
-    base_obj <- update_provenance(base_obj, "raw_import")
+    #base_obj <- update_provenance(base_obj, "raw_import")
     saveRDS(base_obj, base_path)
   } else {
     print("Reading previous base file from vault\n")
@@ -52,7 +53,7 @@ for (sample in samplelist) {
     trim_obj <- TSSEnrichment(trim_obj)
     print("Trimming based on QC")
     trim_obj <- trimSample(trim_obj)
-    trim_obj <- update_provenance(trim_obj, "trim_data")
+    #trim_obj <- update_provenance(trim_obj, "trim_data")
     saveRDS(trim_obj, trimmed_path)
   } else {
     print("Reading previous trim file from vault\n")
@@ -64,17 +65,16 @@ for (sample in samplelist) {
   # STEP 3: 2D TRIM
   kde_path <- get_rds_path(sample, "kdetrim")
   if (!file.exists(kde_path)) {
-    kde_obj <- trim_obj
-    print("Doing n-Dimensional KDE trimming.")
-    cat("Cells before trimming:", nrow(kde_obj@meta.data), "\n")
     #percent filters are percent being kept from each
     #union means all that are kept in at least one of the checks
     #intersection means only those that are kept in both checks
-    kde_obj <- kdeTrimSample(kde_obj,
-                             atac_percentile = 0.95,
-                             rna_percentile = 0.95,
-                             combine_method = "intersection"
-                             )
+    atac_percentile <- 0.95
+    rna_percentile <- 0.95
+    combine_method <- "intersection"
+    kde_obj <- trim_obj
+    print("Doing n-Dimensional KDE trimming.")
+    cat("Cells before trimming:", nrow(kde_obj@meta.data), "\n")
+    kde_obj <- kdeTrimSample(kde_obj, qc_report = FALSE)
     cat("Cells after KDE trimming:", nrow(kde_obj@meta.data), "\n")
     saveRDS(kde_obj, kde_path)
   } else {
@@ -90,7 +90,7 @@ for (sample in samplelist) {
     obj <- NormalizeData(obj)
     obj <- FindVariableFeatures(obj, selection.method = "vst",
                                 nfeatures = 2500)
-    obj <- update_provenance(obj, "pre-merge_rna")
+    #obj <- update_provenance(obj, "pre-merge_rna")
     saveRDS(obj, preRNA_path)
   } else {
     print("Reading previous preRNA file from vault\n")
@@ -103,44 +103,25 @@ for (sample in samplelist) {
     DefaultAssay(obj) <- "ATAC"
     obj <- RunTFIDF(obj)
     obj <- FindTopFeatures(obj)
-    obj <- update_provenance(obj, "pre-merge_atac")
+    #obj <- update_provenance(obj, "pre-merge_atac")
     saveRDS(obj, pipeline1_path)
   } else {
     print("Files already present for this sample for pipeline1\n")
+    obj <- readRDS(pipeline1_path)
   }
   
   # Step 6: Report and cleanup
-  report_path <- file.path("/projects/opioid/project_export", paste0(sample, "_pipeline1_report.txt"))
-  
-  # Gather trimming settings for this sample
-  this_trim <- trimming_settings[trimming_settings$sample == sample, , drop = FALSE]
-  
-  # Compose trimming settings as readable lines
-  trim_lines <- paste(sprintf("  %s = %s", names(this_trim), as.character(this_trim[1,])))
-  
-  # KDE trim settings (hard-coded or variables if you make them variable)
-  kde_lines <- c(
-    sprintf("  atac_percentile = %s", 0.95),
-    sprintf("  rna_percentile = %s", 0.95),
-    sprintf("  combine_method = %s", "intersection")
+  generate_sample_report(
+    sample = sample,
+    base_obj = base_obj,
+    trim_obj = trim_obj,
+    kde_obj = kde_obj,
+    pipeline1_path = pipeline1_path,
+    trimming_settings = trimming_settings,
+    atac_percentile = atac_percentile,
+    rna_percentile = rna_percentile,
+    combine_method = combine_method
   )
-  
-  writeLines(c(
-    sprintf("Pipeline1 Sample Report for: %s", sample),
-    sprintf("Date: %s", Sys.time()),
-    "",
-    sprintf("Step 1: Cells at base (import): %d", nrow(base_obj@meta.data)),
-    sprintf("Step 2: Cells after 1D trim: %d", nrow(trim_obj@meta.data)),
-    sprintf("Step 3: Cells after KDE trim: %d", nrow(kde_obj@meta.data)),
-    "",
-    "The following initial trimming settings were used:",
-    trim_lines,
-    "",
-    "KDE trim settings:",
-    kde_lines,
-    "",
-    sprintf("Final object saved at: %s", pipeline1_path)
-  ), con = report_path)
   
   gc() #R is obnoxious
   cat(sprintf("Sample %s completed successfully.\n", sample))

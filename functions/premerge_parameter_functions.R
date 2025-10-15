@@ -58,14 +58,14 @@ trimSample <- function(seurat_obj, trimming_settings = NULL) {
   
   # filter genes with zero counts across all cells
   DefaultAssay(trimmed) <- "RNA"
-  counts <- GetAssayData(trimmed, slot = "counts")
+  counts <- GetAssayData(trimmed, layer = "counts")
   nonzero_genes <- rowSums(counts) > 0
   nonzero_gene_names <- rownames(counts)[nonzero_genes]
   trimmed[["RNA"]] <- subset(trimmed[["RNA"]], features = nonzero_gene_names)
   
   #filter features with zero counts across all cells
   DefaultAssay(trimmed) <- "ATAC"
-  counts <- GetAssayData(trimmed, slot = "counts")
+  counts <- GetAssayData(trimmed, layer = "counts")
   nonzero_peaks <- rowSums(counts) > 0
   nonzero_peak_names <- rownames(counts)[nonzero_peaks]
   trimmed[["ATAC"]] <- subset(trimmed[["ATAC"]], features = nonzero_peak_names)
@@ -87,12 +87,41 @@ get_density_values <- function(x, y, kde) {
   sapply(seq_along(x), function(i) kde$z[ix[i], iy[i]])
 }
 
-kdeTrimSample <- function(seurat_obj,
-                          atac_percentile = 0.75,
-                          rna_percentile = 0.75,
-                          combine_method = c("intersection", "union"),
-                          ...) {
-  combine_method <- match.arg(combine_method)
+kdeTrimSample <- function(seurat_obj, kde_settings = NULL, qc_report = FALSE) {
+  sample_name <- seurat_obj@project.name
+  
+  # Fetch kde_settings if not provided
+  if (is.null(kde_settings)) {
+    if (!exists("kde_settings", envir = .GlobalEnv)) {
+      stop("kde_settings not found in global environment, and not provided as argument.")
+    }
+    kde_settings <- get("kde_settings", envir = .GlobalEnv)
+  }
+  
+  # Look up parameters for this sample
+  params <- kde_settings[kde_settings$sample == sample_name, ]
+  if (nrow(params) == 0) {
+    stop(sprintf("No KDE settings found for sample '%s'.", sample_name))
+  }
+  
+  # Required KDE columns
+  required_cols <- c("atac_percentile", "rna_percentile", "combine_method")
+  missing_cols <- setdiff(required_cols, names(params))
+  if (length(missing_cols) > 0) {
+    stop(sprintf("KDE settings for sample '%s' are missing required columns: %s",
+                 sample_name, paste(missing_cols, collapse = ", ")))
+  }
+  
+  atac_percentile <- as.numeric(params$atac_percentile)
+  rna_percentile <- as.numeric(params$rna_percentile)
+  combine_method <- as.character(params$combine_method)
+  
+  # Check for missing or NA values
+  if (is.na(atac_percentile) || is.na(rna_percentile) || is.na(combine_method) || combine_method == "") {
+    stop(sprintf("Missing or invalid KDE settings for sample '%s': atac_percentile = %s, rna_percentile = %s, combine_method = %s",
+                 sample_name, atac_percentile, rna_percentile, combine_method))
+  }
+  
   df <- seurat_obj@meta.data
   
   # For ATAC
@@ -131,7 +160,7 @@ kdeTrimSample <- function(seurat_obj,
   cor_top <- cor(x_atac[top_cells], x_rna[top_cells])
   cor_top_quality <- cor(y_atac[top_cells], y_rna[top_cells], use="complete.obs")
   cat(sprintf("\nInformational message:\nCorrelation in KDE-filtered subset: %f (counts), %f (quality)\n", cor_top, cor_top_quality))
-
+  
   PMTmean_before <- mean(df$percent.mt, na.rm=TRUE)
   PMTmean_after <- mean(df$percent.mt[pass_atac & pass_rna], na.rm=TRUE)
   cat(sprintf("Average percent.mt before: %.3f, after KDE filter: %.3f\n", PMTmean_before, PMTmean_after))
@@ -140,7 +169,6 @@ kdeTrimSample <- function(seurat_obj,
   TSSmean_after <- mean(df$TSS.enrichment[pass_atac & pass_rna], na.rm=TRUE)
   cat(sprintf("Average TSS.enrichment before: %.3f, after KDE filter: %.3f\n", TSSmean_before, TSSmean_after))
   
-    
   # Combine according to method
   if (combine_method == "intersection") {
     keep_cells <- rownames(df)[pass_atac & pass_rna]
@@ -148,17 +176,21 @@ kdeTrimSample <- function(seurat_obj,
     keep_cells <- rownames(df)[pass_atac | pass_rna]
   }
   
+  if (qc_report == TRUE) {
+    n_before <- nrow(df)
+    n_pass_atac <- sum(pass_atac)
+    n_pass_rna <- sum(pass_rna)
+    n_after <- sum(top_cells)
+    percent_retained <- 100 * n_after / n_before
+  
+    cat(sprintf(
+      "\nCells before KDE filtering: %d\nCells passing ATAC KDE: %d\nCells passing RNA KDE: %d\nCells after combined KDE filtering: %d (%.2f%% retained)\n",
+      n_before, n_pass_atac, n_pass_rna, n_after, percent_retained))
+    cat(sprintf("\nKDE settings for sample '%s': atac_percentile = %s, rna_percentile = %s, combine_method = %s",
+           sample_name, atac_percentile, rna_percentile, combine_method))
+  }
   # Subset Seurat object
   seurat_obj <- subset(seurat_obj, cells = keep_cells)
-  
-  #message about the before and after counts, for sanity.
-  #cat(sprintf(
-  #  "KDE trimming: %d cells before, %d cells after (%.2f%% removed)\n",
-  #  n_before, n_after, 100 * (n_before - n_after) / n_before
-  #))
-  # Optionally, attach pass/fail vectors for record-keeping
-  #attr(seurat_obj, "kde_pass_atac") <- pass_atac
-  #attr(seurat_obj, "kde_pass_rna")  <- pass_rna
   
   return(seurat_obj)
 }

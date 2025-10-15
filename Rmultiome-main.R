@@ -1,6 +1,7 @@
 library(SeuratObject)
 library(Seurat)
 library(Signac)
+library(harmony)
 library(ggplot2)
 library(EnsDb.Hsapiens.v86)
 library(AnnotationFilter)

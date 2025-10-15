@@ -1,7 +1,9 @@
 source("/projects/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
-#you can manually change the next line if needed, or use location defined in system_settings.R
-source(project_settings_file)
+
+trimming_settings <- read_trimming_settings(trimming_settings_file)
+
+#the next activity is in merged_qc_checks.R currently
 
 #At this point you stop being production, and move to doing a parameter sweep to
 #find the right settings to use.  You will do most of the rest of these tasks
