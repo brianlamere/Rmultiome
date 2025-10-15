@@ -20,7 +20,7 @@ batch effects but no need to do things like redoing peaks, etc).
 `ln -s /projects ~/projects-link`
 "ln" is the link tool, the flag "-s" instructs ln to make a symbolic link.  From there it is source, then target; source is what you are linking to, target is where the link will exist.  The ~ in the example target is a shell option that simply stands for whatever your home directory is, and works on nearly all UNIX variants including OSX.
 5. I won't go much into rstudio usage here, but start rstudio, select to create a new project, browse to that link you created above, then from there select the project directory you used.  In my use I have a larger "/projects" directory that has all my projects in it; you might instead have linked directly to your project.
-6. Once rstudio has started, in your file browser should be the "rawdata", "references," and "Rmultiome" folders.  Open the Rmultiome/system_settings.R file, and modify the early line:  project_base_dir should be set to where your project is located (the folder that has rawdata, references, and Rmultiome).  Modify to your project path location.
+6. Once rstudio has started, in your file browser should be the "rawdata" and "Rmultiome" folders.  Open the Rmultiome/system_settings.R file, and modify the early line:  project_base_dir should be set to where your project is located (the folder that has rawdata and Rmultiome).  Modify to your project path location.
 
 ##QC Phase
 
