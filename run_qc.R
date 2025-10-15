@@ -1,22 +1,26 @@
-source("/projects/opioid/Rmultiome/system_settings.R")
+source("/projects/opioid-per/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
+#Step 1-1: set up your space and list the options for sample names
 trimming_settings <- init_trimming_settings(trimming_settings_file)
 
 EnsDbAnnos <- loadannotations()
 
+list.files(path = rawdatadir)
+
+#step 1-2: pick your sample name, from the listing of files in rawdatadir
 mysample <- "LG05"
 
-# Step 1-2: Create base QC object
+# Step 1-3: Create base QC object
 qc_obj <- base_qc_object(mysample, EnsDbAnnos)
 
-# Step 1-3: Generate QC plots (before trimming)
+# Step 1-4: Generate QC plots (before trimming)
 QCVlnA(qc_obj)
 QCVlnR(qc_obj)
 QCDensity_ATAC(qc_obj)
 QCDensity_RNA(qc_obj)
 
-# Step 1-4: Define local trimming settings for session
+# Step 1-5: Define local trimming settings for session
 my_trimming_settings <- list(
   sample = mysample,
   # ATAC counts
@@ -35,13 +39,13 @@ my_trimming_settings <- list(
   max_TSS = 10
 )
 
-# Step 1-5: Apply trimming.  trimSample reads from trimming_settings and to ensure
+# Step 1-6: Apply trimming.  trimSample reads from trimming_settings and to ensure
 # congruence between QC and the pipeline, we need to update the dataframe
 verify_trimming_settings(trimming_settings, my_trimming_settings)
 trimming_settings <- update_trimming_settings(trimming_settings, my_trimming_settings)
 trimmed_obj <- trimSample(qc_obj)
 
-# Step 1-6: Generate QC plots after trimming
+# Step 1-7: Generate QC plots after trimming
 QCDensity_ATAC(trimmed_obj)
 QCDensity_RNA(trimmed_obj)
 QCVlnA(trimmed_obj)

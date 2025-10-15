@@ -2,7 +2,7 @@
 # The settings in this file are very specific to installation and project!
 
 # Working directory that has everything in it.
-project_base_dir <- "/projects/opioid"
+project_base_dir <- "/projects/opioid-per"
 
 # If following guide precisely, nothing below to end of file would need to change.
 
@@ -32,8 +32,4 @@ h5filename <- "filtered_feature_bc_matrix.h5"
 
 # ATAC fragments file name
 atacfilename <- "atac_fragments.tsv.gz"
-
-# Reference annotation file
-referencefile <- "allen_m1c_2019_ssv4.rds"
-
 
