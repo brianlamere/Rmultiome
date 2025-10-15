@@ -1,13 +1,13 @@
 # Edit this file to match your local environment.
 # The settings in this file are very specific to installation and project!
 
-# Project source code directory
-Rmultiome_path <- "/projects/opioid/Rmultiome"
-
 # Working directory that has everything in it.
 project_base_dir <- "/projects/opioid"
 
 # If following guide precisely, nothing below to end of file would need to change.
+
+# Project source code directory
+Rmultiome_path <- file.path(project_base_dir, "Rmultiome")
 
 # Project raw data directory
 rawdatadir <- file.path(project_base_dir, "rawdata")
