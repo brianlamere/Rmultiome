@@ -5,8 +5,8 @@ Rebased after learning many of the vignettes that seem to apply, don't really
 for my particular data set (very high depth, brain nuclei, thus very strong 
 batch effects but no need to do things like redoing peaks, etc).
 
-#Guide to Rmultiome
-##Initial Setup
+# Guide to Rmultiome
+## Initial Setup
 1. Create a directory for the project.
 2. Inside the directory create a rawdata subdirectory, and inside this directory should be all the sample directories with the cellranger output. Follows are the only files this tool will actually be using from the cellranger output:
 ```
@@ -22,7 +22,7 @@ batch effects but no need to do things like redoing peaks, etc).
 5. I won't go much into rstudio usage here, but start rstudio, select to create a new project, browse to that link you created above, then from there select the project directory you used.  In my use I have a larger "/projects" directory that has all my projects in it; you might instead have linked directly to your project.
 6. Once rstudio has started, in your file browser should be the "rawdata" and "Rmultiome" folders.  Open the Rmultiome/system_settings.R file, and modify the early line:  project_base_dir should be set to where your project is located (the folder that has rawdata and Rmultiome).  Modify to your project path location.
 
-##QC Phase 1: standard/1 dimensional trimming
+## QC Phase 1: standard/1 dimensional trimming
 1. Open the run_qc.R file
 2. modify the very first line of run_qc.R to point to where your system_settings.R file is.  I cannot, unfortunately, make this any cleaner other than needing you to modify this line yourself
 3. Run/source the lines from the top of the file, through step 1-1, which should end by listing the files in your rawdatadir directory.
