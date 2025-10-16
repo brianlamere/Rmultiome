@@ -2,6 +2,8 @@ source("/projects/opioid-per/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #Step 1-1: set up your space and list the options for sample names
+init_project()
+
 trimming_settings <- init_trimming_settings(trimming_settings_file)
 
 EnsDbAnnos <- loadannotations()
@@ -24,18 +26,18 @@ QCDensity_RNA(qc_obj)
 my_trimming_settings <- list(
   sample = mysample,
   # ATAC counts
-  min_nCount_ATAC = 1000,
-  max_nCount_ATAC = 40000,
+  min_nCount_ATAC = 500,
+  max_nCount_ATAC = 50000,
   # RNA counts
   min_nCount_RNA = 200,
-  max_nCount_RNA = 25000,
+  max_nCount_RNA = 30000,
   # Nucleosome signal (nss)
   min_nss = 0.4,
-  max_nss = 1.5,
+  max_nss = 4,
   # % mitochondrial
   max_percentMT = 8,
   # TSS enrichment
-  min_TSS = 2.5,
+  min_TSS = 2,
   max_TSS = 10
 )
 
@@ -46,11 +48,12 @@ trimming_settings <- update_trimming_settings(trimming_settings, my_trimming_set
 trimmed_obj <- trimSample(qc_obj)
 
 # Step 1-7: Generate QC plots after trimming
-QCDensity_ATAC(trimmed_obj)
-QCDensity_RNA(trimmed_obj)
 QCVlnA(trimmed_obj)
 QCVlnR(trimmed_obj)
+QCDensity_ATAC(trimmed_obj)
+QCDensity_RNA(trimmed_obj)
 
+# step 1-8: save trimming settings
 #if the new plots made in step6 still show change is needed, start back at step4
 #Once you are done, write to disk to save the settings
 saveRDS(trimming_settings, trimming_settings_file)
@@ -66,8 +69,8 @@ kde_settings <- init_kde_settings(kde_settings_file)
 #step 2-2: define local KDE settings for sample
 my_kde_settings <- list(
   sample = mysample,
-  atac_percentile = 0.96,
-  rna_percentile = 0.96,
+  atac_percentile = 0.98,
+  rna_percentile = 0.98,
   combine_method = "intersection"
 )
 
@@ -75,8 +78,15 @@ my_kde_settings <- list(
 verify_kde_settings(kde_settings, my_kde_settings)
 kde_settings <- update_kde_settings(kde_settings, my_kde_settings)
 
-#step 2-3: Visualize 
-#there should be happy visuals here that have contour lines at the percentages
-#for now, a basic eyeballing from previous is necessary
+#step 2-3: Visualize via contours
+plot_kde_filter_contours(trimmed_obj, kde_settings)
 
-kde_obj <- kdeTrimSample(trimmed_obj)
+#optional: Step 2-4: Visualize the difference between union and intersection
+plot_kde_filter_combine_compare_atac(trimmed_obj, kde_settings)
+plot_kde_filter_combine_compare_rna(trimmed_obj, kde_settings)
+
+#Repeat steps 2-2 to 2-4 as desired until you find the percentile and combine
+#method you want to use.
+
+#step 2-5: save the KDE trimming setting
+saveRDS(kde_settings, kde_settings_file)

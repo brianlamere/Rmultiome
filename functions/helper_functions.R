@@ -95,11 +95,28 @@ summarize_results <- function(results) {
   do.call(rbind, metrics)
 }
 
+init_project <- function(){
+  if (!dir.exists(project_outdir)) dir.create(project_outdir, recursive = TRUE)
+  if (!dir.exists(rdsdir)) dir.create(rdsdir, recursive = TRUE)
+}
+
 init_trimming_settings <- function(trimming_settings_file){
   if (file.exists(trimming_settings_file)) {
     trimming_settings_init <- readRDS(trimming_settings_file)
   } else {
-    trimming_settings_init <- NULL
+    trimming_settings_init <- data.frame(
+      sample = character(0),
+      min_nCount_ATAC = numeric(0),
+      max_nCount_ATAC = numeric(0),
+      min_nCount_RNA = numeric(0),
+      max_nCount_RNA = numeric(0),
+      min_nss = numeric(0),
+      max_nss = numeric(0),
+      max_percentMT = numeric(0),
+      min_TSS = numeric(0),
+      max_TSS = numeric(0),
+      stringsAsFactors = FALSE
+    )
   }
   return(trimming_settings_init)
 }
@@ -108,7 +125,12 @@ init_kde_settings <- function(kde_settings_file){
   if (file.exists(kde_settings_file)) {
     kde_settings_init <- readRDS(kde_settings_file)
   } else {
-    kde_settings_init <- NULL
+    kde_settings_init <- data.frame(
+      sample = character(0),
+      atac_percentile = numeric(0),
+      rna_percentile = numeric(0),
+      combine_method = character(0)
+    )
   }
   return(kde_settings_init)
 }
@@ -134,7 +156,7 @@ verify_trimming_settings <- function(trimming_settings, my_trimming_settings,
   sample_name <- my_trimming_settings$sample
   existing_row <- trimming_settings[trimming_settings$sample == sample_name, ]
   if (nrow(existing_row) == 0) {
-    cat(sprintf("Sample '%s' is new. No existing trimming settings.\n", sample_name))
+    cat(sprintf("Sample '%s' is new. No previous trimming settings to compare to.\n", sample_name))
   } else {
     if (quiet == FALSE) {
       cat(sprintf("Current settings for sample '%s':\n", sample_name))

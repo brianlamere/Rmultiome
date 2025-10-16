@@ -172,3 +172,141 @@ plotKDETrim <- function(seurat_obj, x_col, y_col, kde_percentile = 0.95,
   legend("topright", legend = c("Retained", "Trimmed"),
          col = c("blue", "grey"), pch = 20)
 }
+
+plot_kde_filter_contours <- function(seurat_obj, kde_settings = NULL, sample_name = NULL, ...) {
+  # Use project name if not specified
+  if (is.null(sample_name)) sample_name <- seurat_obj@project.name
+  
+  # Load kde_settings if not provided
+  if (is.null(kde_settings)) {
+    if (!exists("kde_settings", envir = .GlobalEnv)) {
+      stop("kde_settings not found in global environment, and not provided as argument.")
+    }
+    kde_settings <- get("kde_settings", envir = .GlobalEnv)
+  }
+  
+  # Extract params for this sample
+  params <- kde_settings[kde_settings$sample == sample_name, ]
+  if (nrow(params) == 0) stop(sprintf("No KDE settings found for sample '%s'.", sample_name))
+  atac_percentile <- as.numeric(params$atac_percentile)
+  rna_percentile <- as.numeric(params$rna_percentile)
+  
+  df <- seurat_obj@meta.data
+  
+  # ATAC
+  x_atac <- df$nCount_ATAC
+  y_atac <- df$TSS.enrichment
+  kde_atac <- kde2d(x_atac, y_atac, n = 100)
+  level_atac <- get_perc_level(kde_atac, kdepercent = atac_percentile)
+  
+  plot(x_atac, y_atac, pch=20, cex=0.5,
+       main=sprintf("ATAC KDE filtering at %.0f%%", 100 * atac_percentile),
+       xlab="nCount_ATAC", ylab="TSS.enrichment", ...)
+  contour(kde_atac, levels=level_atac, add=TRUE, col="red", lwd=2, drawlabels=FALSE)
+  legend("topright", legend=sprintf("Contour at %.2f percentile", atac_percentile), col="red", lwd=2)
+  
+  # RNA
+  x_rna <- df$percent.mt
+  y_rna <- df$nCount_RNA
+
+  kde_rna <- kde2d(x_rna, y_rna, n = 100)
+  level_rna <- get_perc_level(kde_rna, kdepercent = rna_percentile)
+  
+  plot(x_rna, y_rna, pch=20, cex=0.5,
+       main=sprintf("RNA KDE filtering at %.0f%%", 100 * rna_percentile),
+       xlab="percent.MT", ylab="nCount_RNA", ...)
+  contour(kde_rna, levels=level_rna, add=TRUE, col="blue", lwd=2, drawlabels=FALSE)
+  legend("topright", legend=sprintf("Contour at %.2f percentile", rna_percentile), col="blue", lwd=2)
+}
+
+plot_kde_filter_combine_compare_atac <- function(seurat_obj, kde_settings = NULL, sample_name = NULL, ...) {
+  if (is.null(sample_name)) sample_name <- seurat_obj@project.name
+  if (is.null(kde_settings)) {
+    if (!exists("kde_settings", envir = .GlobalEnv)) {
+      stop("kde_settings not found in global environment, and not provided as argument.")
+    }
+    kde_settings <- get("kde_settings", envir = .GlobalEnv)
+  }
+  params <- kde_settings[kde_settings$sample == sample_name, ]
+  if (nrow(params) == 0) stop(sprintf("No KDE settings found for sample '%s'.", sample_name))
+  atac_percentile <- as.numeric(params$atac_percentile)
+  rna_percentile <- as.numeric(params$rna_percentile)
+  
+  df <- seurat_obj@meta.data
+  x_atac <- df$nCount_ATAC
+  y_atac <- df$TSS.enrichment
+  kde_atac <- kde2d(x_atac, y_atac, n = 100)
+  level_atac <- get_perc_level(kde_atac, kdepercent = atac_percentile)
+  dens_atac <- get_density_values(x_atac, y_atac, kde_atac)
+  pass_atac <- dens_atac >= level_atac
+  
+  x_rna <- df$nCount_RNA
+  y_rna <- df$percent.mt
+  kde_rna <- kde2d(x_rna, y_rna, n = 100)
+  level_rna <- get_perc_level(kde_rna, kdepercent = rna_percentile)
+  dens_rna <- get_density_values(x_rna, y_rna, kde_rna)
+  pass_rna <- dens_rna >= level_rna
+  
+  union_idx <- pass_atac | pass_rna
+  inter_idx <- pass_atac & pass_rna
+  
+  plot(x_atac, y_atac, pch=20, cex=0.5, 
+       main=sprintf("ATAC KDE filtering at %.0f%%\nUnion (red) vs Intersection (blue)", 100 * atac_percentile),
+       xlab="nCount_ATAC", ylab="TSS.enrichment", col="grey80", ...)
+  if (sum(union_idx) > 10) {
+    kde_union <- kde2d(x_atac[union_idx], y_atac[union_idx], n = 100)
+    contour(kde_union, levels=level_atac, add=TRUE, col="red", lwd=2, drawlabels=FALSE)
+  }
+  if (sum(inter_idx) > 10) {
+    kde_inter <- kde2d(x_atac[inter_idx], y_atac[inter_idx], n = 100)
+    contour(kde_inter, levels=level_atac, add=TRUE, col="blue", lwd=2, drawlabels=FALSE)
+  }
+  legend("topright", legend=c("Union", "Intersection"),
+         col=c("red", "blue"), lwd=2, bty="n")
+}
+
+plot_kde_filter_combine_compare_rna <- function(seurat_obj, kde_settings = NULL, sample_name = NULL, ...) {
+  if (is.null(sample_name)) sample_name <- seurat_obj@project.name
+  if (is.null(kde_settings)) {
+    if (!exists("kde_settings", envir = .GlobalEnv)) {
+      stop("kde_settings not found in global environment, and not provided as argument.")
+    }
+    kde_settings <- get("kde_settings", envir = .GlobalEnv)
+  }
+  params <- kde_settings[kde_settings$sample == sample_name, ]
+  if (nrow(params) == 0) stop(sprintf("No KDE settings found for sample '%s'.", sample_name))
+  atac_percentile <- as.numeric(params$atac_percentile)
+  rna_percentile <- as.numeric(params$rna_percentile)
+  
+  df <- seurat_obj@meta.data
+  x_atac <- df$nCount_ATAC
+  y_atac <- df$TSS.enrichment
+  kde_atac <- kde2d(x_atac, y_atac, n = 100)
+  level_atac <- get_perc_level(kde_atac, kdepercent = atac_percentile)
+  dens_atac <- get_density_values(x_atac, y_atac, kde_atac)
+  pass_atac <- dens_atac >= level_atac
+  
+  x_rna <- df$nCount_RNA
+  y_rna <- df$percent.mt
+  kde_rna <- kde2d(x_rna, y_rna, n = 100)
+  level_rna <- get_perc_level(kde_rna, kdepercent = rna_percentile)
+  dens_rna <- get_density_values(x_rna, y_rna, kde_rna)
+  pass_rna <- dens_rna >= level_rna
+  
+  union_idx <- pass_atac | pass_rna
+  inter_idx <- pass_atac & pass_rna
+  
+  plot(x_rna, y_rna, pch=20, cex=0.5, 
+       main=sprintf("RNA KDE filtering at %.0f%%\nUnion (red) vs Intersection (blue)", 100 * rna_percentile),
+       xlab="nCount_RNA", ylab="percent.mt", col="grey80", ...)
+  if (sum(union_idx) > 10) {
+    kde_union <- kde2d(x_rna[union_idx], y_rna[union_idx], n = 100)
+    contour(kde_union, levels=level_rna, add=TRUE, col="red", lwd=2, drawlabels=FALSE)
+  }
+  if (sum(inter_idx) > 10) {
+    kde_inter <- kde2d(x_rna[inter_idx], y_rna[inter_idx], n = 100)
+    contour(kde_inter, levels=level_rna, add=TRUE, col="blue", lwd=2, drawlabels=FALSE)
+  }
+  legend("topright", legend=c("Union", "Intersection"),
+         col=c("red", "blue"), lwd=2, bty="n")
+}
