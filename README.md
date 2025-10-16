@@ -5,7 +5,7 @@ Rebased after learning many of the vignettes that seem to apply, don't really
 for my particular data set (very high depth, brain nuclei, thus very strong 
 batch effects but no need to do things like redoing peaks, etc).
 
-# Guide to Rmultiome
+# Guide to Using Rmultiome
 ## Initial Setup
 1. Create a directory for the project.
 2. Inside the directory create a rawdata subdirectory, and inside this directory should be all the sample directories with the cellranger output. Follows are the only files this tool will actually be using from the cellranger output:
