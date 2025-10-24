@@ -23,6 +23,7 @@ QCDensity_ATAC(qc_obj)
 QCDensity_RNA(qc_obj)
 
 # Step 1-5: Define local trimming settings for session
+#my_trimming_settings <- trimming_settings[trimming_settings$sample == mysample, ]
 my_trimming_settings <- list(
   sample = mysample,
   # ATAC counts
@@ -78,15 +79,15 @@ my_kde_settings <- list(
 verify_kde_settings(kde_settings, my_kde_settings)
 kde_settings <- update_kde_settings(kde_settings, my_kde_settings)
 
-#step 2-3: Visualize via contours
+#step 2-4: Visualize via contours
 plot_kde_filter_contours(trimmed_obj, kde_settings)
 
-#optional: Step 2-4: Visualize the difference between union and intersection
+#optional: Step 2-5: Visualize the difference between union and intersection
 plot_kde_filter_combine_compare_atac(trimmed_obj, kde_settings)
 plot_kde_filter_combine_compare_rna(trimmed_obj, kde_settings)
 
-#Repeat steps 2-2 to 2-4 as desired until you find the percentile and combine
+#Repeat steps 2-2 to 2-5 as desired until you find the percentile and combine
 #method you want to use.
 
-#step 2-5: save the KDE trimming setting
+#step 2-6: save the KDE trimming setting
 saveRDS(kde_settings, kde_settings_file)
