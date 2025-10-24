@@ -1,4 +1,4 @@
-source("/projects/opioid/Rmultiome/system_settings.R")
+source("/projects/opioid-per/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #The intent of this script is to be able to be run after you've selected all
@@ -110,9 +110,7 @@ for (sample in samplelist) {
     kde_obj = kde_obj,
     pipeline1_path = pipeline1_path,
     trimming_settings = trimming_settings,
-    atac_percentile = atac_percentile,
-    rna_percentile = rna_percentile,
-    combine_method = combine_method
+    kde_settings = kde_settings
   )
   
   gc() #R is obnoxious

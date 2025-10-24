@@ -257,10 +257,8 @@ generate_sample_report <- function(
     kde_obj,
     pipeline1_path,
     trimming_settings,
-    atac_percentile = 0.95,
-    rna_percentile = 0.95,
-    combine_method = "intersection",
-    report_dir = "/projects/opioid/project_export"
+    kde_settings,
+    report_dir = project_outdir
 ) {
   report_path <- file.path(report_dir, paste0(sample, "_pipeline1_report.txt"))
   
@@ -271,11 +269,27 @@ generate_sample_report <- function(
   trim_lines <- paste(sprintf("  %s = %s", names(this_trim), as.character(this_trim[1,])))
   
   # KDE trim settings (allow variable arguments)
+  params_row <- kde_settings[kde_settings$sample == sample, , drop = FALSE]
+  
+  atac_percentile <- as.numeric(params_row$atac_percentile[1])
+  rna_percentile  <- as.numeric(params_row$rna_percentile[1])
+  combine_method  <- as.character(params_row$combine_method[1])
+  
   kde_lines <- c(
     sprintf("  atac_percentile = %s", atac_percentile),
     sprintf("  rna_percentile = %s", rna_percentile),
     sprintf("  combine_method = %s", combine_method)
   )
+  
+  base_rna_counts <- if ("RNA" %in% names(base_obj)) GetAssayData(base_obj[["RNA"]], layer = "counts") else NULL
+  base_atac_counts <- if ("ATAC" %in% names(base_obj)) GetAssayData(base_obj[["ATAC"]], layer = "counts") else NULL
+  base_rna_features <- if (!is.null(base_rna_counts)) nrow(base_rna_counts) else NA
+  base_atac_features <- if (!is.null(base_atac_counts)) nrow(base_atac_counts) else NA
+  
+  trim_rna_counts <- if ("RNA" %in% names(trim_obj)) GetAssayData(trim_obj[["RNA"]], layer = "counts") else NULL
+  trim_atac_counts <- if ("ATAC" %in% names(trim_obj)) GetAssayData(trim_obj[["ATAC"]], layer = "counts") else NULL
+  trim_rna_features <- if (!is.null(trim_rna_counts)) nrow(trim_rna_counts) else NA
+  trim_atac_features <- if (!is.null(trim_atac_counts)) nrow(trim_atac_counts) else NA
   
   # RNA/ATAC cell and feature counts after KDE trim
   rna_cells <- ncol(GetAssayData(kde_obj[["RNA"]], layer = "counts"))
@@ -288,17 +302,19 @@ generate_sample_report <- function(
     sprintf("Date: %s", Sys.time()),
     "",
     sprintf("Step 1: Cells at base (import): %d", nrow(base_obj@meta.data)),
+    sprintf("Step 1: Features at base (import):"),
+    sprintf("  RNA features (base): %s", ifelse(is.na(base_rna_features), "NA", as.character(base_rna_features))),
+    sprintf("  ATAC features (base): %s", ifelse(is.na(base_atac_features), "NA", as.character(base_atac_features))),
     sprintf("Step 2: Cells after 1D trim: %d", nrow(trim_obj@meta.data)),
+    sprintf("Step 2: Features after 1D trim:"),
+    sprintf("  RNA features (after 1D trim): %s", ifelse(is.na(trim_rna_features), "NA", as.character(trim_rna_features))),
+    sprintf("  ATAC features (after 1D trim): %s", ifelse(is.na(trim_atac_features), "NA", as.character(trim_atac_features))),
     sprintf("Step 3: Cells after KDE trim: %d", nrow(kde_obj@meta.data)),
+    sprintf("Step 3: Features remaining after KDE trim (final QC):"),
+    sprintf("  RNA features (after KDE trim): %d", rna_features),
+    sprintf("  ATAC features (after KDE trim): %d", atac_features),
     "",
-    sprintf("Features remaining after trimming:"),
-    sprintf("  RNA features: %d", rna_features),
-    sprintf("  ATAC features: %d", atac_features),
-    sprintf("Cells remaining after trimming:"),
-    sprintf("  RNA cells: %d", rna_cells),
-    sprintf("  ATAC cells: %d", atac_cells),
-    "",
-    "The following initial trimming settings were used:",
+    "The following initial 1D trimming settings were used:",
     trim_lines,
     "",
     "KDE trim settings:",
