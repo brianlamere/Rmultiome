@@ -120,7 +120,7 @@ for (sample in samplelist) {
 
 merged_data <- merge_sample_objects(samplelist)
 
-saveRDS(merged_data, "/projects/opioid/vault/merged_samples.rds")
+saveRDS(merged_data, file.path(rdsdir,"merged_samples.rds"))
 #merged_data <- readRDS("/projects/opioid/vault/merged_samples95.rds")
 
 #post-merge RNA modality
@@ -129,11 +129,9 @@ merged_data <- post_merge_rna(merged_data)
 #post-merge ATAC modality
 merged_data <- post_merge_atac(merged_data)
 
-#leaving this here in case you want to restart pre-harmony
-#merged_data <- readRDS("/projects/opioid/vault/postATAC.rds")
 DefaultAssay(merged_data) <- "RNA"
 
 #time for harmony and FindMultiModalNeighbors
 harmony_obj <- harmonize_both(merged_data, harmony_max_iter = 50)
-saveRDS(harmony_obj, "/projects/opioid/vault/harmonized.rds")
+saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
 
