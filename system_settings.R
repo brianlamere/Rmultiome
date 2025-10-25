@@ -33,7 +33,5 @@ h5filename <- "filtered_feature_bc_matrix.h5"
 # ATAC fragments file name
 atacfilename <- "atac_fragments.tsv.gz"
 
-# Reference annotation file
-referencefile <- "allen_m1c_2019_ssv4.rds"
 
 
