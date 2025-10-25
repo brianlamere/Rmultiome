@@ -144,7 +144,8 @@ merge_sample_objects <- function(samplelist, suffix = "pipeline1", project_name 
   merged_seurat <- update_provenance(merged_seurat, "merged_object")
   
   # Save merged object
-  saveRDS(merged_seurat, path_fun(project_name, "merge"))
+  #why are we doing this inside?  everything else did it in pipeline
+  #saveRDS(merged_seurat, path_fun(project_name, "merge"))
   
   invisible(merged_seurat)
 }

@@ -197,5 +197,19 @@ kdeTrimSample <- function(seurat_obj, kde_settings = NULL, qc_report = FALSE) {
   # Subset Seurat object
   seurat_obj <- subset(seurat_obj, cells = keep_cells)
   
+  # filter genes with zero counts across all cells (RNA assay)
+  DefaultAssay(seurat_obj) <- "RNA"
+  counts <- GetAssayData(seurat_obj, layer = "counts")
+  nonzero_genes <- rowSums(counts) > 0
+  nonzero_gene_names <- rownames(counts)[nonzero_genes]
+  seurat_obj[["RNA"]] <- subset(seurat_obj[["RNA"]], features = nonzero_gene_names)
+  
+  # filter peaks with zero counts across all cells (ATAC assay)
+  DefaultAssay(seurat_obj) <- "ATAC"
+  counts <- GetAssayData(seurat_obj, layer = "counts")
+  nonzero_peaks <- rowSums(counts) > 0
+  nonzero_peak_names <- rownames(counts)[nonzero_peaks]
+  seurat_obj[["ATAC"]] <- subset(seurat_obj[["ATAC"]], features = nonzero_peak_names)
+  
   return(seurat_obj)
 }
