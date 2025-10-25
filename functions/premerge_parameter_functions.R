@@ -174,6 +174,11 @@ kdeTrimSample <- function(seurat_obj, kde_settings = NULL, qc_report = FALSE) {
     keep_cells <- rownames(df)[pass_atac & pass_rna]
   } else if (combine_method == "union") {
     keep_cells <- rownames(df)[pass_atac | pass_rna]
+  } else {
+    stop(sprintf(
+      "Invalid combine_method '%s'. Must be either 'intersection' or 'union'.",
+      combine_method
+    ))
   }
   
   if (qc_report == TRUE) {

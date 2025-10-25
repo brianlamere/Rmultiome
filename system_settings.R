@@ -2,7 +2,7 @@
 # The settings in this file are very specific to installation and project!
 
 # Working directory that has everything in it.
-project_base_dir <- "/projects/opioid"
+project_base_dir <- "/projects/opioid-per"
 
 # If following guide precisely, nothing below to end of file would need to change.
 

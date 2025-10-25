@@ -1,4 +1,4 @@
-source("/projects/opioid/Rmultiome/system_settings.R")
+source("/projects/opioid-per/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #The intent of this script is to be able to be run after you've selected all
@@ -60,17 +60,9 @@ for (sample in samplelist) {
     trim_obj <- readRDS(trimmed_path)
   }
   
-  #For filtering, "union" keeps cells if either atac or rna passes, where
-  # "intersection" keeps only those cells that pass both.
   # STEP 3: 2D TRIM
   kde_path <- get_rds_path(sample, "kdetrim")
   if (!file.exists(kde_path)) {
-    #percent filters are percent being kept from each
-    #union means all that are kept in at least one of the checks
-    #intersection means only those that are kept in both checks
-    atac_percentile <- 0.95
-    rna_percentile <- 0.95
-    combine_method <- "intersection"
     kde_obj <- trim_obj
     print("Doing n-Dimensional KDE trimming.")
     cat("Cells before trimming:", nrow(kde_obj@meta.data), "\n")
@@ -118,9 +110,7 @@ for (sample in samplelist) {
     kde_obj = kde_obj,
     pipeline1_path = pipeline1_path,
     trimming_settings = trimming_settings,
-    atac_percentile = atac_percentile,
-    rna_percentile = rna_percentile,
-    combine_method = combine_method
+    kde_settings = kde_settings
   )
   
   gc() #R is obnoxious
