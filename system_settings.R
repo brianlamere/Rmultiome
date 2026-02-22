@@ -4,7 +4,15 @@
 # Working directory that has everything in it.
 project_base_dir <- "/projects/opioid-per"
 
+# Main 10X h5 file (RNA + ATAC peaks)
+# If using raw CellRanger ARC output:
+h5filename <- "filtered_feature_bc_matrix.h5"
+# If using CellBender-corrected output (run BEFORE run_qc.R):
+# h5filename <- "cellbender_output_filtered.h5"
+
+##################################################################################
 # If following guide precisely, nothing below to end of file would need to change.
+##################################################################################
 
 # Project source code directory
 Rmultiome_path <- file.path(project_base_dir, "Rmultiome")
@@ -26,9 +34,6 @@ kde_settings_file <- file.path(project_outdir, "kde_settings.Rds")
 
 # Reference files directory
 referencedir <- file.path(project_base_dir, "references")
-
-# Main 10X h5 file (RNA)
-h5filename <- "filtered_feature_bc_matrix.h5"
 
 # ATAC fragments file name
 atacfilename <- "atac_fragments.tsv.gz"
