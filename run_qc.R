@@ -1,4 +1,4 @@
-source("/projects/opioid-per/Rmultiome/system_settings.R")
+source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #Step 1-1: set up your space and list the options for sample names

@@ -1,4 +1,4 @@
-source("/projects/opioid/Rmultiome/system_settings.R")
+source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 trimming_settings <- read_trimming_settings(trimming_settings_file)
@@ -46,7 +46,7 @@ cluster_to_celltype <- c(
 labeled_obj$celltypes <- cluster_to_celltype[as.character(labeled_obj$seurat_clusters)]
 labeled_obj$celltypes <- unname(cluster_to_celltype[as.character(labeled_obj$seurat_clusters)])
 
-p <- DimPlot(obj_no12, group.by = "celltypes", label = TRUE, raster=FALSE)
+p <- DimPlot(labeled_obj, group.by = "celltypes", label = TRUE, raster=FALSE)
 
 p + coord_cartesian(xlim = c(-17, 10))
 

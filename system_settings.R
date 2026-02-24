@@ -2,7 +2,7 @@
 # The settings in this file are very specific to installation and project!
 
 # Working directory that has everything in it.
-project_base_dir <- "/projects/opioid-per"
+project_base_dir <- "/projects1/opioid"
 
 # Main 10X h5 file (RNA + ATAC peaks)
 # If using raw CellRanger ARC output:
