@@ -13,7 +13,7 @@ use_cellbender <- FALSE
 ##################################################################################
 # Main 10X multiome h5 file (RNA + ATAC peaks) from CellRanger ARC
 # This file is still used even when CellBender is enabled, because it contains Peaks.
-# expected at:  paste(rawdatadir, samplename, cellbender_rna_h5filename, sep = "/")
+# expected at:  paste(rawdatadir, samplename, h5filename, sep = "/")
 h5filename <- "filtered_feature_bc_matrix.h5"
 
 # CellBender-corrected RNA file (per-sample)
