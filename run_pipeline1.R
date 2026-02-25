@@ -20,7 +20,7 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
 trimming_settings <- read_trimming_settings(trimming_settings_file)
-kde_settings <- init_kde_settings(kde_settings_file)
+kde_settings <- read_kde_settings(kde_settings_file)
 
 samplelist <- trimming_settings$sample
 
@@ -33,7 +33,7 @@ for (sample in samplelist) {
   # STEP 1: RAW (import)
   base_path <- get_rds_path(sample, "base")
   if (!file.exists(base_path)) {
-    base_obj <- base_object(sample)
+    base_obj <- base_object(sample,cb_report="write")
     print("Adding chromosome mapping information to ATAC assay.")
     base_obj <- chromosome_mapping(base_obj, rna_annos = EnsDbAnnos)
     #base_obj <- update_provenance(base_obj, "raw_import")
