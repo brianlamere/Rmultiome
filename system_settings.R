@@ -13,10 +13,11 @@ use_cellbender <- FALSE
 ##################################################################################
 # Main 10X multiome h5 file (RNA + ATAC peaks) from CellRanger ARC
 # This file is still used even when CellBender is enabled, because it contains Peaks.
+# expected at:  paste(rawdatadir, samplename, cellbender_rna_h5filename, sep = "/")
 h5filename <- "filtered_feature_bc_matrix.h5"
 
-# CellBender-corrected RNA file (per-sample), expected at:
-#   paste(cb_datadir, samplename, cellbender_rna_h5filename, sep = "/")
+# CellBender-corrected RNA file (per-sample)
+# expected at:  paste(cb_datadir, samplename, cellbender_rna_h5filename, sep = "/")
 cellbender_rna_h5filename <- "cellbender_gex_filtered.h5"
 
 # Project source code directory
@@ -25,7 +26,7 @@ Rmultiome_path <- file.path(project_base_dir, "Rmultiome")
 # Project raw data directory
 rawdatadir <- file.path(project_base_dir, "rawdata")
 
-# Project cellbender data directory.  Defaults to rawdatadir, but can be manually changed here
+# Project cellbender data directory
 cb_datadir <- file.path(project_base_dir, "cb_data")
 
 # Vault of rds files saved at different milestones
