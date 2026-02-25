@@ -1,4 +1,6 @@
-refactoring.  Have gone through system_settings, run_qc.R, run_pipeline1.R, functions/helper_functions.R
+refactoring.  compare the repo from a month ago to the one from EOD today, and then the scaffolding that was added, logically follow the use for it
+
+Have gone through system_settings, run_qc.R, run_pipeline1.R, functions/helper_functions.R
 
 run_pipeline1.R needs additional change to do compare_cellbender_reports(mode="pipeline")
 run_pipeline2.R and the postmerge_* functions should not need to be changed at all based on the cellbender addition, since...by then we're past that point
