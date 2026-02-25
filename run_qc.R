@@ -5,6 +5,7 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 init_project()
 
 trimming_settings <- init_trimming_settings(trimming_settings_file)
+kde_settings <- init_kde_settings(kde_settings_file)
 
 EnsDbAnnos <- loadannotations()
 
@@ -14,7 +15,7 @@ list.files(path = rawdatadir)
 mysample <- "LG05"
 
 # Step 1-3: Create base QC object
-qc_obj <- base_qc_object(mysample, EnsDbAnnos)
+qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
 
 # Step 1-4: Generate QC plots (before trimming)
 QCVlnA(qc_obj)
@@ -61,13 +62,9 @@ saveRDS(trimming_settings, trimming_settings_file)
 
 ###############KDE settings################################
 
-#step 2-1: read any existing/current settings
-kde_settings <- init_kde_settings(kde_settings_file)
-
+#step 2-1: define local KDE settings for sample
 #we can re-print the plots, but your "before" is the same as the last set of
 # 4 from 1D trimming, above
-
-#step 2-2: define local KDE settings for sample
 my_kde_settings <- list(
   sample = mysample,
   atac_percentile = 0.98,
@@ -75,29 +72,33 @@ my_kde_settings <- list(
   combine_method = "intersection"
 )
 
-#set 2-3: save to the settings dataframe
+#set 2-2: save to the settings dataframe
 verify_kde_settings(kde_settings, my_kde_settings)
 kde_settings <- update_kde_settings(kde_settings, my_kde_settings)
 
-#step 2-4: Visualize via contours
+#step 2-3: Visualize via contours
 plot_kde_filter_contours(trimmed_obj, kde_settings)
 
-#optional: Step 2-5: Visualize the difference between union and intersection
+#optional: Step 2-4: Visualize the difference between union and intersection
 plot_kde_filter_combine_compare_atac(trimmed_obj, kde_settings)
 plot_kde_filter_combine_compare_rna(trimmed_obj, kde_settings)
 
-#Repeat steps 2-2 to 2-5 as desired until you find the percentile and combine
-#method you want to use.
+#Repeat steps 2-1 to 2-4 as desired until you find the percentile and combine
+# method you want to use.
 
 #step 2-6: save the KDE trimming setting
 saveRDS(kde_settings, kde_settings_file)
 
+#step 3-1: start almost everything over
 #protect yourself from stepping on yourself
-rm(mysample,qc_obj,my_trimming_settings,trimming_settings,trimmed_obj,kde_settings,my_kde_settings)
-#repeat steps 1-2 to 2-6 for each sample, starting by changing the "mysample" setting and looping back to here
+rm(mysample,qc_obj,my_trimming_settings,trimmed_obj,kde_settings,my_kde_settings)
+#Stop at this point, then repeat steps 1-2 to 3-1 for each sample, starting by
+# changing the "mysample" setting and looping back to here
 
-#compare all the cellbender reports as an aggregated list.  Call allows for "samplelist=" but defaults
-# to samplelist=trimming_settings$sample.  Example use: samplelist=c("LG05","LG08") as argument in call
+#step 4-1: compare cellbender reports
+#compare all the cellbender reports as an aggregated list.  Call allows for
+# "samplelist=" but defaults to samplelist=trimming_settings$sample.
+# Example use: samplelist=c("LG05","LG08") as argument in call
 compare_cellbender_reports("qc")
 
 #if everything looks good to this point, you're ready to use run_pipeline1.R
