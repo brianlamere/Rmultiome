@@ -91,3 +91,13 @@ plot_kde_filter_combine_compare_rna(trimmed_obj, kde_settings)
 
 #step 2-6: save the KDE trimming setting
 saveRDS(kde_settings, kde_settings_file)
+
+#protect yourself from stepping on yourself
+rm(mysample,qc_obj,my_trimming_settings,trimming_settings,trimmed_obj,kde_settings,my_kde_settings)
+#repeat steps 1-2 to 2-6 for each sample, starting by changing the "mysample" setting and looping back to here
+
+#compare all the cellbender reports as an aggregated list.  Call allows for "samplelist=" but defaults
+# to samplelist=trimming_settings$sample.  Example use: samplelist=c("LG05","LG08") as argument in call
+compare_cellbender_reports("qc")
+
+#if everything looks good to this point, you're ready to use run_pipeline1.R
