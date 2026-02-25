@@ -98,6 +98,12 @@ summarize_results <- function(results) {
 init_project <- function(){
   if (!dir.exists(project_outdir)) dir.create(project_outdir, recursive = TRUE)
   if (!dir.exists(rdsdir)) dir.create(rdsdir, recursive = TRUE)
+
+  # Scratch space for interactive QC + temporary outputs
+  if (!dir.exists(tmpfiledir)) dir.create(tmpfiledir, recursive = TRUE)
+
+  # Output directory for per-sample CellBender merge reports (written by pipeline1)
+  if (!dir.exists(cellbender_report_dir)) dir.create(cellbender_report_dir, recursive = TRUE)
 }
 
 init_trimming_settings <- function(trimming_settings_file){
