@@ -1,0 +1,53 @@
+refactoring.  Have gone through system_settings, run_qc.R, run_pipeline1.R, functions/helper_functions.R
+
+run_pipeline1.R needs additional change to do compare_cellbender_reports(mode="pipeline")
+run_pipeline2.R and the postmerge_* functions should not need to be changed at all based on the cellbender addition, since...by then we're past that point
+
+modify functions/premerge_processing_functions.R base_object to check use_cellbender setting, and...use it, if it's TRUE.
+This brings in the display/write cb_report distinction as well, not just the calling of import/merge
+
+Add 3 new functions, in functions/premerge_processing_functions.R 
+
+compare_cellbender_reports <- function(mode = c("qc", "pipeline"),
+                                       samples = NULL,
+                                       report_dir = NULL { ... }
+
+generate_cb_report < function(
+# can't find the function signature, but it was intended to create a csv with:
+* sample id
+* n_atac, n_cb, n_intersection, prop_atac_covered
+* pearson, spearman, r2, slope, intercept
+* weighted_removed, ratio_median, ratio_q05, ratio_q95
+* nnz_ratio
+
+split the below code that was done on console, into function(s) that:
+1) read cellranger multiomic h5
+2) read cellbender gex h5
+3) replace cellranger GEX matrix with cellbender GEX matrix
+
+idea was a read_cellbender_h5 (or whatever name) function, to isolate data source, then
+reading cellranger multiomic is already in seurat and simple, then second merge function that
+replaces cellranger GEX with cellbender GEX
+
+here was the sloppy code:
+> multi <- Read10X_h5("filtered_feature_bc_matrix.h5")
+Genome matrix has multiple modalities, returning a list of matrices for this genome
+> rna_orig <- multi$`Gene Expression`
+> atac_orig <- multi$Peaks
+> library(scCustomize)
+scCustomize v3.2.4
+If you find the scCustomize useful please cite.
+See 'samuel-marsh.github.io/scCustomize/articles/FAQ.html' for citation info.
+> cb_mat <- Read_CellBender_h5_Mat("cellbender_gex_filtered.h5")
+> common_cells <- intersect(colnames(rna_orig), colnames(cb_mat))
+> common_genes <- intersect(rownames(rna_orig), rownames(cb_mat))
+> cb_mat2 <- cb_mat[common_genes, common_cells, drop=FALSE]
+atac2   <- atac_orig[, common_cells, drop=FALSE]
+> obj[["ATAC"]] <- Signac::CreateChromatinAssay(
+  counts = atac2,
+  fragments = "atac_fragments.tsv.gz",
+  sep = c(":", "-"),
+  annotation = EnsDbAnnos
+)
+# note: forgot the line that actually creates the Seurat object from corrected RNA (CreateSeuratObject(counts = cb_mat2, ...))
+
