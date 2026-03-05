@@ -7,54 +7,208 @@ loadannotations <- function(ensdb = EnsDb.Hsapiens.v86) {
   return(annotation)
 }
 
+#' Read CellBender-corrected RNA counts from H5 file
+#'
+#' @param sample Sample identifier
+#' @return dgCMatrix of CellBender RNA counts (genes × barcodes)
 read_cellbender_rna_counts <- function(sample) {
-  # Inputs: sample name (string)
-  #  Uses settings: cb_datadir, cellbender_rna_h5filename
-  #  Returns: dgCMatrix (genes × barcodes) from CellBender H5
-  #  Behavior: Hard-fails if file missing or can't load scCustomize
+  cb_h5_path <- file.path(cb_datadir, sample, cellbender_rna_h5filename)
+  
+  if (!file.exists(cb_h5_path)) {
+    stop(sprintf("CellBender H5 file not found for sample '%s': %s", sample, cb_h5_path))
+  }
+  
+  # Check if scCustomize is available
+  if (!requireNamespace("scCustomize", quietly = TRUE)) {
+    stop("Package 'scCustomize' is required for reading CellBender output. Install with: install.packages('scCustomize')")
+  }
+  
+  cat(sprintf("Reading CellBender RNA counts from: %s\n", cb_h5_path))
+  cb_rna <- scCustomize::Read_CellBender_h5_Mat(file_name = cb_h5_path)
+  
+  cat(sprintf("Loaded CellBender RNA: %d genes, %d cells\n", nrow(cb_rna), ncol(cb_rna)))
+  
+  return(cb_rna)
 }
 
+#' Splice CellBender RNA into multiome data by intersecting barcodes
+#'
+#' @param rna_orig CellRanger RNA counts matrix
+#' @param atac_orig CellRanger ATAC counts matrix
+#' @param cb_rna CellBender RNA counts matrix
+#' @param sample Sample name (for error messages)
+#' @return Named list with rna_counts, atac_counts, common_cells, in_mat, cb_mat2
 splice_cellbender_rna_into_multiome <- function(rna_orig, atac_orig, cb_rna, sample) {
-  # Inputs:
-    # rna_orig: CellRanger RNA counts (matrix)
-    # atac_orig: CellRanger ATAC counts (matrix)
-    # cb_rna: CellBender RNA counts (matrix)
-    # sample: sample name (for error messages)
-  # Returns: named list:
-    # list(
-    # rna_counts = <subsetted cb_rna>,
-    # atac_counts = <subsetted atac_orig>,
-    # common_cells = <character vector of intersected barcodes>,
-    # in_mat = <CellRanger RNA subsetted to common_cells>,  # for metrics
-    # cb_mat2 = <CellBender RNA subsetted to common_cells>)  # for metrics
-  # Behavior: Intersects barcodes, subsets both modalities; stops if no common cells
+  # Get barcode sets
+  atac_cells <- colnames(atac_orig)
+  cb_cells <- colnames(cb_rna)
+  
+  # Intersect barcodes
+  common_cells <- intersect(atac_cells, cb_cells)
+  
+  if (length(common_cells) == 0) {
+    stop(sprintf("Sample '%s': No common barcodes between ATAC (%d cells) and CellBender RNA (%d cells).", 
+                 sample, length(atac_cells), length(cb_cells)))
+  }
+  
+  # Report coverage
+  prop_atac_covered <- length(common_cells) / length(atac_cells)
+  cat(sprintf("Barcode intersection: %d common cells (%.1f%% of ATAC barcodes)\n", 
+              length(common_cells), prop_atac_covered * 100))
+  
+  if (prop_atac_covered < 0.80) {
+    warning(sprintf("Sample '%s': Only %.1f%% of ATAC barcodes found in CellBender output (< 80%%). Consider re-running CellBender.", 
+                    sample, prop_atac_covered * 100))
+  }
+  
+  # Subset both modalities to common cells
+  rna_counts <- cb_rna[, common_cells, drop = FALSE]
+  atac_counts <- atac_orig[, common_cells, drop = FALSE]
+  
+  # Also subset the original CellRanger RNA to common cells (for metrics comparison)
+  in_mat <- rna_orig[, common_cells, drop = FALSE]
+  cb_mat2 <- cb_rna[, common_cells, drop = FALSE]
+  
+  return(list(
+    rna_counts = rna_counts,
+    atac_counts = atac_counts,
+    common_cells = common_cells,
+    in_mat = in_mat,
+    cb_mat2 = cb_mat2
+  ))
 }
 
+#' Compute CellBender merge metrics
+#'
+#' @param sample Sample name
+#' @param in_mat CellRanger RNA (subsetted to common cells)
+#' @param cb_mat2 CellBender RNA (subsetted to common cells)
+#' @param atac_orig Original ATAC counts (full)
+#' @param cb_rna_full CellBender RNA counts (full)
+#' @param common_cells Vector of intersected barcodes
+#' @return 1-row data.frame with merge quality metrics
 compute_cb_merge_metrics <- function(sample, in_mat, cb_mat2, atac_orig, cb_rna_full, common_cells) {
-  #Inputs:
-  #      sample: sample name
-  #      in_mat: CellRanger RNA (subsetted to common cells)
-  #      cb_mat2: CellBender RNA (subsetted to common cells)
-  #      atac_orig: original ATAC (full, for barcode comparison)
-  #      cb_rna_full: CellBender RNA (full, for barcode comparison)
-  #      common_cells: intersected barcode vector
-  #  Returns: 1-row data.frame with columns:
-  #      sample, n_atac, n_cb, n_intersection, prop_atac_covered
-  #      pearson, spearman, r2, slope, intercept
-  #      weighted_removed, ratio_median, ratio_q05, ratio_q95, nnz_ratio
-
+  # Barcode overlap metrics
+  n_atac <- ncol(atac_orig)
+  n_cb <- ncol(cb_rna_full)
+  n_intersection <- length(common_cells)
+  prop_atac_covered <- n_intersection / n_atac
+  
+  # Per-cell UMI totals (for correlation)
+  cellranger_umis <- Matrix::colSums(in_mat)
+  cellbender_umis <- Matrix::colSums(cb_mat2)
+  
+  # Correlation metrics
+  pearson <- cor(cellranger_umis, cellbender_umis, method = "pearson")
+  spearman <- cor(cellranger_umis, cellbender_umis, method = "spearman")
+  
+  # Linear regression (CellBender ~ CellRanger)
+  lm_fit <- lm(cellbender_umis ~ cellranger_umis)
+  r2 <- summary(lm_fit)$r.squared
+  slope <- coef(lm_fit)[2]
+  intercept <- coef(lm_fit)[1]
+  
+  # Removal metrics (weighted by original counts)
+  removed_counts <- cellranger_umis - cellbender_umis
+  weighted_removed <- sum(removed_counts * cellranger_umis) / sum(cellranger_umis^2)
+  
+  # Ratio distribution (CB / CellRanger per cell)
+  ratios <- cellbender_umis / cellranger_umis
+  ratio_median <- median(ratios)
+  ratio_q05 <- quantile(ratios, 0.05)
+  ratio_q95 <- quantile(ratios, 0.95)
+  
+  # Non-zero ratio (sparsity comparison)
+  nnz_cellranger <- Matrix::nnzero(in_mat)
+  nnz_cellbender <- Matrix::nnzero(cb_mat2)
+  nnz_ratio <- nnz_cellbender / nnz_cellranger
+  
+  # Assemble metrics into 1-row data.frame
+  metrics <- data.frame(
+    sample = sample,
+    n_atac = n_atac,
+    n_cb = n_cb,
+    n_intersection = n_intersection,
+    prop_atac_covered = prop_atac_covered,
+    pearson = pearson,
+    spearman = spearman,
+    r2 = r2,
+    slope = slope,
+    intercept = intercept,
+    weighted_removed = weighted_removed,
+    ratio_median = ratio_median,
+    ratio_q05 = ratio_q05,
+    ratio_q95 = ratio_q95,
+    nnz_ratio = nnz_ratio,
+    stringsAsFactors = FALSE
+  )
+  
+  return(metrics)
 }
 
+#' Emit CellBender merge report (display and/or write)
+#'
+#' @param metrics 1-row data.frame from compute_cb_merge_metrics()
+#' @param mode "write", "display", or "none"
+#' @param sample Sample name (for filename)
 emit_cb_report <- function(metrics, mode = c("write", "display", "none"), sample) {
-  #Inputs:
-  #      metrics: 1-row data.frame from compute_cb_merge_metrics()
-  #      mode: "write", "display", or "none"
-  #      sample: sample name (for filename)
-  #  Uses settings: tmpfiledir, cellbender_report_dir (determines output dir based on calling context)
-  #  Behavior:
-  #      "display": print to console + View() + write to tmpfiledir/cellbender_merge_reports/<sample>.csv
-  #      "write": write to cellbender_report_dir/<sample>.csv
-  #      "none": do nothing
+  mode <- match.arg(mode)
+  
+  if (mode == "none") {
+    return(invisible(NULL))
+  }
+  
+  # Determine output directory based on mode
+  if (mode == "display") {
+    # QC mode: write to tmp and display
+    out_dir <- file.path(tmpfiledir, "cellbender_merge_reports")
+    
+    # Ensure directory exists
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+    }
+    
+    # Write CSV
+    out_path <- file.path(out_dir, paste0(sample, ".csv"))
+    write.csv(metrics, out_path, row.names = FALSE)
+    
+    # Display to console
+    cat("\n=== CellBender Merge Report ===\n")
+    cat(sprintf("Sample: %s\n", sample))
+    cat(sprintf("ATAC cells: %d | CellBender cells: %d | Intersection: %d (%.1f%%)\n",
+                metrics$n_atac, metrics$n_cb, metrics$n_intersection, 
+                metrics$prop_atac_covered * 100))
+    cat(sprintf("Correlation - Pearson: %.3f | Spearman: %.3f | R²: %.3f\n",
+                metrics$pearson, metrics$spearman, metrics$r2))
+    cat(sprintf("Regression - Slope: %.3f | Intercept: %.1f\n",
+                metrics$slope, metrics$intercept))
+    cat(sprintf("Removal - Weighted: %.3f | Ratio median: %.3f [Q05: %.3f, Q95: %.3f]\n",
+                metrics$weighted_removed, metrics$ratio_median, 
+                metrics$ratio_q05, metrics$ratio_q95))
+    cat(sprintf("Sparsity - NNZ ratio: %.3f\n", metrics$nnz_ratio))
+    cat(sprintf("Report saved to: %s\n", out_path))
+    cat("================================\n\n")
+    
+    # View in RStudio (safe in interactive sessions)
+    if (interactive()) {
+      utils::View(metrics, title = paste("CellBender Merge:", sample))
+    }
+    
+  } else if (mode == "write") {
+    # Pipeline mode: write to export directory (no display)
+    out_dir <- cellbender_report_dir
+    
+    # Ensure directory exists
+    if (!dir.exists(out_dir)) {
+      dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+    }
+    
+    out_path <- file.path(out_dir, paste0(sample, ".csv"))
+    write.csv(metrics, out_path, row.names = FALSE)
+    cat(sprintf("CellBender merge report written to: %s\n", out_path))
+  }
+  
+  return(invisible(NULL))
 }
 
 #' Create the initial base seurat object
@@ -139,11 +293,12 @@ base_object <- function(samplename, cb_report = c("write", "display", "none")) {
   return(baseSeuratObj)
 }
 
-base_qc_object <- function(sample, EnsDbAnnos, save = FALSE) {
+base_qc_object <- function(sample, EnsDbAnnos, save = FALSE, cb_report = "display") {
   cat(sprintf("\nProcessing sample: %s\n", sample))
   base_path <- get_rds_path(sample, "base")
   
-  base_obj <- base_object(sample)
+  # Create base object with CellBender reporting
+  base_obj <- base_object(sample, cb_report = cb_report)
   
   cat("Adding chromosome mapping information to ATAC assay.\n")
   base_obj <- chromosome_mapping(base_obj, rna_annos = EnsDbAnnos)
