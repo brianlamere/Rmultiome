@@ -329,3 +329,97 @@ generate_sample_report <- function(
     sprintf("Final object saved at: %s", pipeline1_path)
   ), con = report_path)
 }
+
+#' Compare CellBender merge reports across samples
+#'
+#' @param mode "qc" or "pipeline" (determines report directory)
+#' @param samplelist Sample names to compare (if NULL, reads from 
+#'   trimming_settings_file)
+compare_cellbender_reports <- function(
+  mode = c("qc", "pipeline"), 
+  samplelist = NULL
+) {
+  mode <- match.arg(mode)
+  
+  # If samplelist not provided, read from trimming settings
+  if (is.null(samplelist)) {
+    trimming_settings <- read_trimming_settings(trimming_settings_file)
+    samplelist <- trimming_settings$sample
+    cat(sprintf(
+      "Using samples from trimming_settings_file: %s\n", 
+      trimming_settings_file
+    ))
+  }
+  
+  # Determine report directory based on mode
+  if (mode == "qc") {
+    report_dir <- file.path(tmpfiledir, "cellbender_merge_reports")
+  } else {
+    report_dir <- cellbender_report_dir
+  }
+  
+  # Read per-sample reports
+  reports_list <- list()
+  missing_samples <- c()
+  
+  for (sample in samplelist) {
+    report_path <- file.path(report_dir, paste0(sample, ".csv"))
+    
+    if (file.exists(report_path)) {
+      reports_list[[sample]] <- read.csv(
+        report_path, 
+        stringsAsFactors = FALSE
+      )
+    } else {
+      missing_samples <- c(missing_samples, sample)
+    }
+  }
+  
+  # Handle missing reports
+  if (length(missing_samples) > 0) {
+    warning(sprintf(
+      "Missing CellBender reports for samples: %s\nRun base_object() 
+with cb_report enabled for these samples.",
+      paste(missing_samples, collapse = ", ")
+    ))
+  }
+  
+  if (length(reports_list) == 0) {
+    stop("No CellBender reports found. Check report directory and 
+sample names.")
+  }
+  
+  # Combine all reports
+  combined <- do.call(rbind, reports_list)
+  
+  # Sort by key metrics (prop_atac_covered asc, pearson asc, 
+  # weighted_removed desc)
+  combined <- combined[order(
+    combined$prop_atac_covered, 
+    combined$pearson, 
+    -combined$weighted_removed
+  ), ]
+  
+  # Reset row names
+  rownames(combined) <- NULL
+  
+  # Display
+  cat(sprintf(
+    "\n=== CellBender Merge Report Comparison (%s mode) ===\n", 
+    mode
+  ))
+  cat(sprintf("Samples: %d\n", nrow(combined)))
+  cat(sprintf("Report directory: %s\n\n", report_dir))
+  
+  print(combined, row.names = FALSE)
+  
+  # View in RStudio if interactive
+  if (interactive()) {
+    utils::View(
+      combined, 
+      title = paste("CellBender Comparison:", mode)
+    )
+  }
+  
+  return(invisible(combined))
+}
