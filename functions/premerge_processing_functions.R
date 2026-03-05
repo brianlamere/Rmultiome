@@ -1,12 +1,4 @@
-#Functions that are part of preprocessing; nothing here should, by definition
-#process the seurat5 object, merely populate it with the data to be processed.
-
-#we're using v86, though v114 is available it is from this month.
-loadannotations <- function(ensdb = EnsDb.Hsapiens.v86) {
-  annotation <- GetGRangesFromEnsDb(ensdb = ensdb)
-  seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
-  return(annotation)
-}
+#Functions that are part of premerge processing.  Nothing here should be steps for a merged object
 
 #' Create the initial base seurat object
 #'
@@ -121,6 +113,40 @@ chromosome_mapping <- function(seurat_obj, rna_annos, warn_threshold = 16000) {
   return(seurat_obj)
 }
 
+compute_cb_merge_metrics <- function(sample, in_mat, cb_mat2, atac_orig, cb_rna_full, common_cells) {
+  #Inputs:
+  #      sample: sample name
+  #      in_mat: CellRanger RNA (subsetted to common cells)
+  #      cb_mat2: CellBender RNA (subsetted to common cells)
+  #      atac_orig: original ATAC (full, for barcode comparison)
+  #      cb_rna_full: CellBender RNA (full, for barcode comparison)
+  #      common_cells: intersected barcode vector
+  #  Returns: 1-row data.frame with columns:
+  #      sample, n_atac, n_cb, n_intersection, prop_atac_covered
+  #      pearson, spearman, r2, slope, intercept
+  #      weighted_removed, ratio_median, ratio_q05, ratio_q95, nnz_ratio
+
+}
+
+emit_cb_report <- function(metrics, mode = c("write", "display", "none"), sample) {
+  #Inputs:
+  #      metrics: 1-row data.frame from compute_cb_merge_metrics()
+  #      mode: "write", "display", or "none"
+  #      sample: sample name (for filename)
+  #  Uses settings: tmpfiledir, cellbender_report_dir (determines output dir based on calling context)
+  #  Behavior:
+  #      "display": print to console + View() + write to tmpfiledir/cellbender_merge_reports/<sample>.csv
+  #      "write": write to cellbender_report_dir/<sample>.csv
+  #      "none": do nothing
+
+
+#we're using v86, though v114 is available it is from this month.
+loadannotations <- function(ensdb = EnsDb.Hsapiens.v86) {
+  annotation <- GetGRangesFromEnsDb(ensdb = ensdb)
+  seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
+  return(annotation)
+}
+
 merge_sample_objects <- function(samplelist, suffix = "pipeline1", project_name = "opioid", path_fun = get_rds_path) {
   # Get file paths for all samples
   file_paths <- sapply(samplelist, function(sample) path_fun(sample, suffix))
@@ -149,3 +175,31 @@ merge_sample_objects <- function(samplelist, suffix = "pipeline1", project_name 
   
   invisible(merged_seurat)
 }
+                                                
+read_cellbender_rna_counts <- function(sample) {
+  # Inputs: sample name (string)
+  #  Uses settings: cb_datadir, cellbender_rna_h5filename
+  #  Returns: dgCMatrix (genes × barcodes) from CellBender H5
+  #  Behavior: Hard-fails if file missing or can't load scCustomize
+
+}
+
+splice_cellbender_rna_into_multiome <- function(rna_orig, atac_orig, cb_rna, sample) {
+  # Inputs:
+    # rna_orig: CellRanger RNA counts (matrix)
+    # atac_orig: CellRanger ATAC counts (matrix)
+    # cb_rna: CellBender RNA counts (matrix)
+    # sample: sample name (for error messages)
+  # Returns: named list:
+    # list(
+    # rna_counts = <subsetted cb_rna>,
+    # atac_counts = <subsetted atac_orig>,
+    # common_cells = <character vector of intersected barcodes>,
+    # in_mat = <CellRanger RNA subsetted to common_cells>,  # for metrics
+    # cb_mat2 = <CellBender RNA subsetted to common_cells>)  # for metrics
+  # Behavior: Intersects barcodes, subsets both modalities; stops if no common cells
+}
+
+
+
+  
