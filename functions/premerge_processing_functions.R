@@ -59,15 +59,64 @@ emit_cb_report <- function(metrics, mode = c("write", "display", "none"), sample
 
 #' Create the initial base seurat object
 #'
-#' @param samplename raw file from Read10X_h5
+#' @param samplename Sample identifier
+#' @param cb_report CellBender merge report mode: "write", "display", or "none"
 #' @return base Seurat5 object with percent.mt added
-base_object <- function(samplename) {
+base_object <- function(samplename, cb_report = c("write", "display", "none")) {
+  cb_report <- match.arg(cb_report)
+  
+  # Always read the multiome H5 (needed for ATAC, and for RNA if not using CellBender)
   fullrna <- paste(rawdatadir, samplename, h5filename, sep = "/")
   fullatac <- paste(rawdatadir, samplename, atacfilename, sep = "/")
-  counts <- Read10X_h5(filename = fullrna)
-  rna_counts <- counts$`Gene Expression`
-  atac_counts <- counts$Peaks
   
+  counts <- Read10X_h5(filename = fullrna)
+  rna_counts_orig <- counts$`Gene Expression`
+  atac_counts_orig <- counts$Peaks
+  
+  # Determine final RNA and ATAC counts based on use_cellbender setting
+  if (use_cellbender) {
+    cat("CellBender mode enabled: loading corrected RNA counts...\n")
+    
+    # Read CellBender RNA
+    cb_rna <- read_cellbender_rna_counts(samplename)
+    
+    # Splice CellBender RNA into multiome (intersect barcodes, subset both modalities)
+    spliced <- splice_cellbender_rna_into_multiome(
+      rna_orig = rna_counts_orig,
+      atac_orig = atac_counts_orig,
+      cb_rna = cb_rna,
+      sample = samplename
+    )
+    
+    # Compute merge metrics
+    metrics <- compute_cb_merge_metrics(
+      sample = samplename,
+      in_mat = spliced$in_mat,
+      cb_mat2 = spliced$cb_mat2,
+      atac_orig = atac_counts_orig,
+      cb_rna_full = cb_rna,
+      common_cells = spliced$common_cells
+    )
+    
+    # Emit report (display/write/none)
+    emit_cb_report(metrics, mode = cb_report, sample = samplename)
+    
+    # Use spliced (intersected) counts
+    rna_counts <- spliced$rna_counts
+    atac_counts <- spliced$atac_counts
+    
+    cat(sprintf("Using CellBender RNA counts: %d cells, %d genes\n", 
+                ncol(rna_counts), nrow(rna_counts)))
+    cat(sprintf("ATAC counts subsetted to common cells: %d cells, %d peaks\n", 
+                ncol(atac_counts), nrow(atac_counts)))
+    
+  } else {
+    # Use original CellRanger counts
+    rna_counts <- rna_counts_orig
+    atac_counts <- atac_counts_orig
+  }
+  
+  # Create Seurat object (same logic whether using CellBender or not)
   print("Creating the RNA assay for the Seurat object...")
   baseSeuratObj <- CreateSeuratObject(
     counts = rna_counts,
