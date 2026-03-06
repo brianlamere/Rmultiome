@@ -6,7 +6,7 @@ project_base_dir <- "/projects1/opioid"
 
 # If TRUE, base_object() will replace the CellRanger RNA counts with CellBender-corrected RNA.
 # This requires that the CellBender output exists for each sample; otherwise the pipeline will stop.
-use_cellbender <- FALSE
+use_cellbender <- TRUE
 
 ##################################################################################
 # If following guide precisely, nothing below to end of file would need to change.

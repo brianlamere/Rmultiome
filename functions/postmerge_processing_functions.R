@@ -37,7 +37,10 @@ harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
     object = harmony_obj,
     group.by.vars = "orig.ident",
     reduction.use = "lsi",
-    project.dim = harmony_project.dim
+    plot_convergence = TRUE,
+    max_iter = harmony_max_iter,
+    project.dim = harmony_project.dim,
+    reduction.save = "harmony_atac"
   )
   return(harmony_obj)
 }

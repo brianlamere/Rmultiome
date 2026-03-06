@@ -189,10 +189,10 @@ emit_cb_report <- function(metrics, mode = c("write", "display", "none"), sample
     cat(sprintf("Report saved to: %s\n", out_path))
     cat("================================\n\n")
     
-    # View in RStudio (safe in interactive sessions)
-    if (interactive()) {
-      utils::View(metrics, title = paste("CellBender Merge:", sample))
-    }
+    ## View in RStudio (safe in interactive sessions)
+    #if (interactive()) {
+    #  utils::View(metrics, title = paste("CellBender Merge:", sample))
+    #}
     
   } else if (mode == "write") {
     # Pipeline mode: write to export directory (no display)

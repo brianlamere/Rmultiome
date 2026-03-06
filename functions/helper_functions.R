@@ -413,13 +413,27 @@ sample names.")
   
   print(combined, row.names = FALSE)
   
-  # View in RStudio if interactive
-  if (interactive()) {
-    utils::View(
-      combined, 
-      title = paste("CellBender Comparison:", mode)
-    )
+  # Write aggregated report to tmp for easy viewing
+  agg_path <- file.path(report_dir, "aggregated_comparison.csv")
+  write.csv(combined, agg_path, row.names = FALSE)
+  cat(sprintf("\nAggregated report saved to: %s\n", agg_path))
+  cat("View with: less -S <path> or import into your preferred tool\n\n")
+
+  print(combined, row.names = FALSE)
+
+  if (interactive() && Sys.getenv("RSTUDIO") == "1") {
+    utils::View(combined, title = paste("CellBender Comparison:", mode))
   }
   
   return(invisible(combined))
+}
+
+#' Open new graphics device if not in RStudio
+#' @param width Window width in inches (default 10)
+#' @param height Window height in inches (default 8)
+maybe_new_device <- function(width = 10, height = 8) {
+  if (!requireNamespace("rstudioapi", quietly = TRUE) ||
+      !rstudioapi::isAvailable()) {
+    dev.new(width = width, height = height)
+  }
 }

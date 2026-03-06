@@ -10,9 +10,10 @@ kde_settings <- init_kde_settings(kde_settings_file)
 EnsDbAnnos <- loadannotations()
 
 list.files(path = rawdatadir)
+list.files(path = cb_datadir)
 
 #step 1-2: pick your sample name, from the listing of files in rawdatadir
-mysample <- "LG05"
+mysample <- "LG38"
 
 # Step 1-3: Create base QC object
 qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
@@ -28,19 +29,19 @@ QCDensity_RNA(qc_obj)
 my_trimming_settings <- list(
   sample = mysample,
   # ATAC counts
-  min_nCount_ATAC = 500,
+  min_nCount_ATAC = 1500,
   max_nCount_ATAC = 50000,
   # RNA counts
-  min_nCount_RNA = 200,
-  max_nCount_RNA = 30000,
+  min_nCount_RNA = 300,
+  max_nCount_RNA = 65000,
   # Nucleosome signal (nss)
-  min_nss = 0.4,
-  max_nss = 4,
+  min_nss = 0.2,
+  max_nss = 2,
   # % mitochondrial
-  max_percentMT = 8,
+  max_percentMT = 3,
   # TSS enrichment
-  min_TSS = 2,
-  max_TSS = 10
+  min_TSS = 1,
+  max_TSS = 8
 )
 
 # Step 1-6: Apply trimming.  trimSample reads from trimming_settings and to ensure
@@ -63,8 +64,13 @@ saveRDS(trimming_settings, trimming_settings_file)
 ###############KDE settings################################
 
 #step 2-1: define local KDE settings for sample
-#we can re-print the plots, but your "before" is the same as the last set of
-# 4 from 1D trimming, above
+#can re-print the plots, but your "before" is the same as the last set from 1D-trim above
+# KDE filtering combine methods:
+#   - "intersection": Cell must pass BOTH modality thresholds
+#                     (more stringent, more trimming)
+#   - "union":        Cell must pass EITHER modality threshold
+#                     (more permissive, less trimming)
+
 my_kde_settings <- list(
   sample = mysample,
   atac_percentile = 0.98,
@@ -91,7 +97,7 @@ saveRDS(kde_settings, kde_settings_file)
 
 #step 3-1: start almost everything over
 #protect yourself from stepping on yourself
-rm(mysample,qc_obj,my_trimming_settings,trimmed_obj,kde_settings,my_kde_settings)
+rm(mysample,qc_obj,my_trimming_settings,trimmed_obj,my_kde_settings)
 #Stop at this point, then repeat steps 1-2 to 3-1 for each sample, starting by
 # changing the "mysample" setting and looping back to here
 

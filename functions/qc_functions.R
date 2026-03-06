@@ -51,8 +51,12 @@ QCDensity_ATAC <- function(seurat_obj) {
       bins = 6, # Increase bins for smoother contours
       contour = TRUE
     )
+
+  maybe_new_device()  
   print(nCA_TSS_density)
+  maybe_new_device()  
   print(nFA_TSS_density)
+  maybe_new_device()  
   print(nss_TSS_density)
 }
 
@@ -100,8 +104,11 @@ QCDensity_RNA <- function(seurat_obj) {
     ggtitle(paste("RNA count vs RNA feature density plot for ",
                   seurat_obj@project.name,
                   " for doublets and general QC"))
+  maybe_new_device()  
   print(nCR_nFR_density)
+  maybe_new_device()  
   print(pMT_nCR_density)
+  maybe_new_device()  
   print(pMT_nFR_density)
 }
 
@@ -115,6 +122,7 @@ QCVlnA <- function(seurat_obj) {
     ncol = 4,
     pt.size = 0
   ) 
+  maybe_new_device()  
   print(VPsn2)
 }
 
@@ -123,6 +131,7 @@ QCVlnR <- function(seurat_obj) {
   DefaultAssay(seurat_obj) <- "RNA"
   VP2sn2 <- VlnPlot(seurat_obj, features = "percent.mt") +
     ggtitle(paste("MT Density plot for", seurat_obj@project.name))
+  maybe_new_device()  
   print(VP2sn2)
 }
 
@@ -166,6 +175,7 @@ plotKDETrim <- function(seurat_obj, x_col, y_col, kde_percentile = 0.95,
   
   keep <- rownames(df) %in% retained_cells
   
+  maybe_new_device()  
   plot(x, y, col = ifelse(keep, "blue", "grey"), pch = 20, xlab = x_col,
        ylab = y_col, main = main, ...)
   contour(kde, levels = level, add = TRUE, col = "red", lwd = 2)
@@ -199,6 +209,7 @@ plot_kde_filter_contours <- function(seurat_obj, kde_settings = NULL, sample_nam
   kde_atac <- kde2d(x_atac, y_atac, n = 100)
   level_atac <- get_perc_level(kde_atac, kdepercent = atac_percentile)
   
+  maybe_new_device()  
   plot(x_atac, y_atac, pch=20, cex=0.5,
        main=sprintf("ATAC KDE filtering at %.0f%%", 100 * atac_percentile),
        xlab="nCount_ATAC", ylab="TSS.enrichment", ...)
@@ -212,6 +223,7 @@ plot_kde_filter_contours <- function(seurat_obj, kde_settings = NULL, sample_nam
   kde_rna <- kde2d(x_rna, y_rna, n = 100)
   level_rna <- get_perc_level(kde_rna, kdepercent = rna_percentile)
   
+  maybe_new_device()  
   plot(x_rna, y_rna, pch=20, cex=0.5,
        main=sprintf("RNA KDE filtering at %.0f%%", 100 * rna_percentile),
        xlab="percent.MT", ylab="nCount_RNA", ...)
@@ -250,6 +262,7 @@ plot_kde_filter_combine_compare_atac <- function(seurat_obj, kde_settings = NULL
   union_idx <- pass_atac | pass_rna
   inter_idx <- pass_atac & pass_rna
   
+  maybe_new_device()  
   plot(x_atac, y_atac, pch=20, cex=0.5, 
        main=sprintf("ATAC KDE filtering at %.0f%%\nUnion (red) vs Intersection (blue)", 100 * atac_percentile),
        xlab="nCount_ATAC", ylab="TSS.enrichment", col="grey80", ...)
@@ -296,6 +309,7 @@ plot_kde_filter_combine_compare_rna <- function(seurat_obj, kde_settings = NULL,
   union_idx <- pass_atac | pass_rna
   inter_idx <- pass_atac & pass_rna
   
+  maybe_new_device()  
   plot(x_rna, y_rna, pch=20, cex=0.5, 
        main=sprintf("RNA KDE filtering at %.0f%%\nUnion (red) vs Intersection (blue)", 100 * rna_percentile),
        xlab="nCount_RNA", ylab="percent.mt", col="grey80", ...)
