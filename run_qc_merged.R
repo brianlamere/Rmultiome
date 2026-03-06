@@ -1,32 +1,10 @@
-#these are not functions.  They should be, and will be functions, but as of now...
+source("/projects1/opioid/Rmultiome/system_settings.R")
+source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
+merged_obj <- readRDS(file.path(rdsdir, "harmonized.rds"))
 
-#testing PC1 and PC2 for technical data, to set minimum dim for neighbors and UMAP
-#used same for random other PCs and found low correlatoin similar to PC2 for our data
-
-if (TRUE) {
-pc1 <- Embeddings(merged_data, "pca")[, 1]
-cor.test(pc1, merged_data$percent.mt)
-cor.test(pc1, merged_data$nCount_RNA)
-cor.test(pc1, merged_data$nFeature_RNA)
-cor.test(pc1, merged_data$TSS.enrichment)
-cor.test(pc1, merged_data$nCount_ATAC)
-cor.test(pc1, merged_data$nFeature_ATAC)
-
-#same for pc2
-pc2 <- Embeddings(merged_data, "pca")[, 2]
-cor.test(pc2, merged_data$percent.mt)
-cor.test(pc2, merged_data$nCount_RNA)
-cor.test(pc2, merged_data$nFeature_RNA)
-cor.test(pc2, merged_data$TSS.enrichment)
-cor.test(pc2, merged_data$nCount_ATAC)
-cor.test(pc2, merged_data$nFeature_ATAC)
-}
-
-#read in the post-pipeline1, post-merge, post-RNA and ATAC processing, data.
-merged_data <- readRDS("/projects/opioid/vault/postATAC.rds")
-merged_obj <- harmonize_both(merged_data, harmony_max_iter = 50)
-
+#this will tell you if PC1 (or potentially more) should be dropped.
+pc_check <- check_pc_technical_bias(merged_data, n_pcs = 10)
 
 #theory: find elbow to set dimensionality for Neighbors.  But mormalized data 
 #will throw this off and for this project the elbow made for ugly unclear graphs.
@@ -34,12 +12,6 @@ merged_obj <- harmonize_both(merged_data, harmony_max_iter = 50)
 #taken from that, but here's your elbow - you can set max dims to the elbow if you
 #want to not worry about how much of a massive difference these parameters make
 findElbow(merged_data)
-
-# Here we'll try a bunch of different combinations of a couple settings, to see
-# what works better.  The elbow above can have whatever impact you'd like
-
-merged_data <- readRDS("/projects/opioid/vault/postATAC.rds")
-merged_obj <- harmonize_both(merged_data, harmony_max_iter = 50)
 
 
 results <- list()
