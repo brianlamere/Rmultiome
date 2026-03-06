@@ -157,3 +157,133 @@ test_clustering_stability <- function(seurat_obj, params, n_runs = 5) {
 
   mean(ari_scores)  # Average stability across runs
 }
+
+#' Define parameter sweep combinations
+#' @param dims_range List of dimension ranges (e.g., list(c(2:30), c(2:40)))
+#' @param knn_values Vector of k-nearest neighbors values
+#' @param res_values Vector of resolution values
+#' @return Data frame with all parameter combinations
+define_parameter_sweep <- function(dims_range, knn_values, res_values) {
+  # Create all combinations
+  params <- expand.grid(
+    dims_idx = seq_along(dims_range),
+    knn = knn_values,
+    res = res_values,
+    stringsAsFactors = FALSE
+  )
+
+  # Add the actual dims vectors
+  params$dims <- lapply(params$dims_idx, function(i) dims_range[[i]])
+
+  # Create readable dims string for labeling
+  params$dims_str <- sapply(params$dims, function(d) {
+    sprintf("%d:%d", min(d), max(d))
+  })
+
+  # Remove temporary index column
+  params$dims_idx <- NULL
+
+  # Add unique ID for each parameter set
+  params$param_id <- seq_len(nrow(params))
+
+  return(params)
+}
+
+#' Run parameter sweep with metrics
+#' @param seurat_obj Harmonized Seurat object (post-harmony, pre-FMMN)
+#' @param dims_range List of dimension ranges
+#' @param knn_values Vector of k values
+#' @param res_values Vector of resolution values
+#' @param save_dir Directory to save intermediate objects (optional)
+#' @param compute_stability Whether to test clustering stability (slow)
+#' @return Data frame with metrics for each parameter combination
+run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
+                                             res_values, save_dir = NULL,
+                                             compute_stability = FALSE) {
+  # Define parameter combinations
+  params <- define_parameter_sweep(dims_range, knn_values, res_values)
+
+  cat(sprintf("\n=== Running parameter sweep: %d combinations ===\n", nrow(params)))
+
+  results <- list()
+
+  for (i in seq_len(nrow(params))) {
+    param_set <- params[i, ]
+    cat(sprintf("\n[%d/%d] Testing: dims=%s, knn=%d, res=%.3f\n",
+               i, nrow(params), param_set$dims_str, param_set$knn, param_set$res))
+
+    # Run FMMN with this parameter set
+    obj <- FindMultiModalNeighbors(
+      object = seurat_obj,
+      reduction.list = list("pca", "harmony"),
+      dims.list = list(param_set$dims[[1]], param_set$dims[[1]]),
+      k.nn = param_set$knn,
+      knn.graph.name = "wknn",
+      snn.graph.name = "wsnn",
+      weighted.nn.name = "weighted.nn"
+    )
+
+    # Cluster with this resolution
+    obj <- FindClusters(
+      obj,
+      graph.name = "wsnn",
+      algorithm = 3,
+      resolution = param_set$res,
+      random.seed = 1984
+    )
+
+    # Compute UMAP for visualization
+    obj <- RunUMAP(obj, reduction = "harmony", dims = param_set$dims[[1]])
+
+    # Compute metrics
+    metrics <- compute_cluster_metrics(obj, reduction = "harmony",
+                                      dims = param_set$dims[[1]])
+
+    # Optional: Test stability (slow, only for finalists)
+    if (compute_stability) {
+      stability <- test_clustering_stability(obj, param_set, n_runs = 3)
+      metrics$stability_ari <- stability
+    }
+
+    # Combine parameters and metrics
+    result <- c(as.list(param_set), metrics)
+    results[[i]] <- result
+
+    # Optionally save intermediate object
+    if (!is.null(save_dir)) {
+      if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
+      filename <- sprintf("sweep_dims%s_k%d_r%.3f.rds",
+                         gsub(":", "_", param_set$dims_str),
+                         param_set$knn, param_set$res)
+      saveRDS(obj, file.path(save_dir, filename))
+    }
+
+    cat(sprintf("  → %d clusters, modularity=%.3f, silhouette=%.3f\n",
+               metrics$n_clusters, metrics$modularity, metrics$silhouette))
+  }
+
+  # Convert results to data frame
+  results_df <- do.call(rbind, lapply(results, function(x) {
+    as.data.frame(x, stringsAsFactors = FALSE)
+  }))
+
+  return(results_df)
+}
+
+#' Load a specific parameter sweep result
+#' @param sweep_dir Directory where sweep objects were saved
+#' @param dims_str Dimension string (e.g., "2:40")
+#' @param knn k-nearest neighbors value
+#' @param res Resolution value
+#' @return Seurat object with those parameters
+load_sweep_result <- function(sweep_dir, dims_str, knn, res) {
+  filename <- sprintf("sweep_dims%s_k%d_r%.3f.rds",
+                     gsub(":", "_", dims_str), knn, res)
+  filepath <- file.path(sweep_dir, filename)
+
+  if (!file.exists(filepath)) {
+    stop(sprintf("Sweep result not found: %s", filepath))
+  }
+
+  readRDS(filepath)
+}

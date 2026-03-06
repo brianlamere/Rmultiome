@@ -500,3 +500,44 @@ maybe_new_device_workspace <- function(width = 10, height = 8,
 
   invisible(NULL)
 }
+
+#' Capture session info for reproducibility
+#' @param output_file Path to save session info
+capture_session_info <- function(output_file = NULL) {
+  session <- sessionInfo()
+
+  # Key packages for multiome
+  key_packages <- c("Seurat", "Signac", "harmony", "SeuratObject",
+                   "GenomicRanges", "EnsDb.Hsapiens.v86")
+
+  # Extract versions
+  versions <- sapply(key_packages, function(pkg) {
+    if (pkg %in% rownames(installed.packages())) {
+      as.character(packageVersion(pkg))
+    } else {
+      "Not installed"
+    }
+  })
+
+  version_df <- data.frame(
+    package = names(versions),
+    version = versions,
+    stringsAsFactors = FALSE
+  )
+
+  # Add R version
+  r_info <- data.frame(
+    package = "R",
+    version = paste(R.version$major, R.version$minor, sep = "."),
+    stringsAsFactors = FALSE
+  )
+
+  version_df <- rbind(r_info, version_df)
+
+  if (!is.null(output_file)) {
+    write.csv(version_df, output_file, row.names = FALSE)
+    cat(sprintf("Session info saved to: %s\n", output_file))
+  }
+
+  return(version_df)
+}
