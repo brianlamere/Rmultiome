@@ -1,17 +1,39 @@
 source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
-merged_obj <- readRDS(file.path(rdsdir, "harmonized.rds"))
+# Load harmonized data
+harmony_obj <- readRDS(file.path(rdsdir, "harmonized.rds"))
 
-#this will tell you if PC1 (or potentially more) should be dropped.
-pc_check <- check_pc_technical_bias(merged_data, n_pcs = 10)
+# === STEP 1: Diagnostic checks ===
+# Check for technical bias in PCs
+pc_check <- check_pc_technical_bias(harmony_obj, n_pcs = 10)
+maybe_new_device(width = 10, height = 8)
+print(pc_check$heatmap)
 
-#theory: find elbow to set dimensionality for Neighbors.  But mormalized data 
-#will throw this off and for this project the elbow made for ugly unclear graphs.
-#it is an unclear metric, and I prefer parameter sweeps and objective metrics 
-#taken from that, but here's your elbow - you can set max dims to the elbow if you
-#want to not worry about how much of a massive difference these parameters make
-findElbow(merged_data)
+# Find elbow (informative but not prescriptive)
+elbow <- findElbow(harmony_obj)
+cat(sprintf("Elbow detected at PC%d\n", elbow))
+
+# === STEP 2: Define parameter sweep ranges ===
+sweep_params <- define_parameter_sweep(
+  dims_range = list(c(2:30), c(2:40), c(2:50)),
+  knn_values = c(20, 30, 40, 50),
+  res_values = c(0.03, 0.04, 0.05, 0.1, 0.2),
+  exclude_pc1 = TRUE  # Based on PC bias check
+)
+
+# === STEP 3: Run parameter sweep ===
+sweep_results <- run_parameter_sweep(
+  seurat_obj = harmony_obj,
+  params = sweep_params,
+  save_dir = file.path(rdsdir, "param_sweep"),
+  metrics = c("silhouette", "modularity", "stability")
+)
+
+# === STEP 4: Evaluate results ===
+best_params <- evaluate_sweep_results(sweep_results)
+print(best_params)
+
 
 
 results <- list()

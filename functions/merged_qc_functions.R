@@ -77,3 +77,83 @@ check_pc_technical_bias <- function(seurat_obj, n_pcs = 10, reduction = "pca") {
   # Return both plots
   list(heatmap = p1, lineplot = p2, cor_matrix = cor_matrix)
 }
+
+#' Compute clustering quality metrics
+#' @param seurat_obj Seurat object with clustering
+#' @param reduction Which reduction to use for silhouette/distance
+#' @return List of metric values
+compute_cluster_metrics <- function(seurat_obj, reduction = "pca",
+                                   dims = 2:30) {
+  require(cluster)
+  require(igraph)
+
+  clusters <- Idents(seurat_obj)
+  embeddings <- Embeddings(seurat_obj, reduction = reduction)[, dims]
+
+  # Silhouette score (range -1 to 1, higher = better separated clusters)
+  # BUT: Can favor over-clustering
+  dist_matrix <- dist(embeddings)
+  sil <- silhouette(as.numeric(clusters), dist_matrix)
+  silhouette_avg <- mean(sil[, 3])
+
+  # Modularity (from graph, higher = better community structure)
+  # More biologically relevant for scRNA-seq
+  graph <- seurat_obj@graphs$wsnn
+  if (!is.null(graph)) {
+    ig <- graph_from_adjacency_matrix(as.matrix(graph), mode = "undirected",
+                                     weighted = TRUE)
+    modularity_score <- modularity(ig, as.numeric(clusters))
+  } else {
+    modularity_score <- NA
+  }
+
+  # Cluster size distribution (detect over-fragmentation)
+  cluster_sizes <- table(clusters)
+  n_singletons <- sum(cluster_sizes == 1)
+  size_cv <- sd(cluster_sizes) / mean(cluster_sizes)  # coefficient of variation
+
+  # Number of clusters
+  n_clusters <- length(unique(clusters))
+
+  list(
+    silhouette = silhouette_avg,
+    modularity = modularity_score,
+    n_clusters = n_clusters,
+    n_singletons = n_singletons,
+    size_cv = size_cv,
+    median_cluster_size = median(cluster_sizes),
+    min_cluster_size = min(cluster_sizes),
+    max_cluster_size = max(cluster_sizes)
+  )
+}
+
+#' Test clustering stability across multiple runs
+#' @param seurat_obj Seurat object
+#' @param params Single parameter set (dims, knn, res)
+#' @param n_runs Number of times to re-run clustering
+#' @return Adjusted Rand Index (ARI) between runs (higher = more stable)
+test_clustering_stability <- function(seurat_obj, params, n_runs = 5) {
+  require(mclust)  # for adjustedRandIndex
+
+  clustering_results <- list()
+
+  for (i in 1:n_runs) {
+    # Re-run with different seed
+    obj <- FindClusters(seurat_obj, graph.name = "wsnn",
+                       resolution = params$res,
+                       random.seed = i * 1000)
+    clustering_results[[i]] <- Idents(obj)
+  }
+
+  # Compute pairwise ARI between all runs
+  ari_scores <- c()
+  for (i in 1:(n_runs - 1)) {
+    for (j in (i + 1):n_runs) {
+      ari <- adjustedRandIndex(clustering_results[[i]],
+                              clustering_results[[j]])
+      ari_scores <- c(ari_scores, ari)
+    }
+  }
+
+  mean(ari_scores)  # Average stability across runs
+}

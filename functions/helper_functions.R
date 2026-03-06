@@ -437,3 +437,66 @@ maybe_new_device <- function(width = 10, height = 8) {
     dev.new(width = width, height = height)
   }
 }
+
+#' Open new graphics device with optional Hyprland workspace routing
+#' @param width Window width in inches
+#' @param height Window height in inches
+#' @param workspace Hyprland workspace number (NULL = current workspace)
+#' @param title Window title for Hyprland matching
+maybe_new_device_workspace <- function(width = 10, height = 8,
+                                      workspace = NULL,
+                                      title = "R Graphics") {
+  # Check if in RStudio
+  in_rstudio <- requireNamespace("rstudioapi", quietly = TRUE) &&
+                rstudioapi::isAvailable()
+
+  if (in_rstudio) {
+    # RStudio: plots go to Plots pane, workspace parameter ignored
+    return(invisible(NULL))
+  }
+
+  # Not in RStudio, open new X11 device
+  dev.new(width = width, height = height, title = title)
+
+  # Handle Hyprland workspace routing if requested
+  if (!is.null(workspace)) {
+    # Check if running under Hyprland
+    hypr_sig <- Sys.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+
+    if (hypr_sig == "") {
+      warning(sprintf(
+        "Workspace routing requested (workspace=%d) but not running under Hyprland.\nPlot window opened on current workspace.",
+        workspace
+      ))
+      return(invisible(NULL))
+    }
+
+    # Running under Hyprland, attempt to move window
+    Sys.sleep(0.2)  # Let window spawn
+
+    # Use new Hyprland syntax: hyprctl dispatch movetoworkspacesilent
+    cmd <- sprintf('hyprctl dispatch movetoworkspacesilent %d,title:%s',
+                  workspace, title)
+    result <- system(cmd, intern = TRUE, ignore.stderr = TRUE)
+
+    # Optional: Check if window rule exists (helps with first-time setup)
+    if (workspace == 9 && title == "R_ParamSweep") {
+      # Check hyprland.conf for the expected rule
+      hypr_conf <- path.expand("~/.config/hypr/hyprland.conf")
+      if (file.exists(hypr_conf)) {
+        conf_text <- readLines(hypr_conf, warn = FALSE)
+        has_rule <- any(grepl("R_ParamSweep.*workspace.*9", conf_text))
+
+        if (!has_rule) {
+          message(
+            "Note: For automatic workspace routing, add to ~/.config/hypr/hyprland.conf:\n",
+            "  windowrule = match:title R_ParamSweep, workspace 9 silent\n",
+            "Then reload Hyprland config with: hyprctl reload"
+          )
+        }
+      }
+    }
+  }
+
+  invisible(NULL)
+}
