@@ -121,13 +121,14 @@ for (sample in samplelist) {
 merged_data <- merge_sample_objects(samplelist)
 
 saveRDS(merged_data, file.path(rdsdir,"merged_samples.rds"))
+preharmony <- merged_data
 
 #post-merge RNA modality
-merged_data <- post_merge_rna(merged_data)
+preharmony <- post_merge_rna(preharmony)
 
 #post-merge ATAC modality
-merged_data <- post_merge_atac(merged_data)
+preharmony <- post_merge_atac(preharmony)
 
-saveRDS(merged_data, file.path(rdsdir,"merged_preharmony.Rds"))
+saveRDS(preharmony, file.path(rdsdir,"merged_preharmony.Rds"))
 
 cat("Now returning to QC processes.\n")
