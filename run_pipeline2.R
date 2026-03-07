@@ -2,50 +2,54 @@ source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 trimming_settings <- read_trimming_settings(trimming_settings_file)
+cluster_settings <- read_cluster_settings(cluster_settings_file)
+celltype_settings <- read_celltype_settings(celltype_settings_file)
+harmony_settings <- read_harmony_settings(harmony_settings_file)
 
-#the next activity is in merged_qc_checks.R currently
+# === Load merged data and all settings ===
+merged_obj <- readRDS(file.path(rdsdir, "merged_preharmony.Rds"))
 
-#At this point you stop being production, and move to doing a parameter sweep to
-#find the right settings to use.  You will do most of the rest of these tasks
-#many times if you do it correctly, since you will be using subjective and objective
-#assessments of the different settings, including with cell typing, before moving
-#back to differential analysis.  Don't return here until you know what to put on
-#the next lines for dims, knn, and resolution
-
-#harmony_obj <- readRDS("/projects/opioid/vault/harmonized.rds")
-
-harmony_obj250_k40 <- FMMN_task(harmony_obj, dims_pca = 2:50, dims_harmony = 2:50, knn = 40)
-premap_obj <- cluster_data(harmony_obj250_k40, alg = 3, res = 0.1,
-                           cluster_dims = 2:50, cluster_seed = 1984)
-DimPlot(premap_obj,label=T, raster=FALSE)
-
-#adding file name info that corresponds to the resolution used for FindClusters
-saveRDS(premap_obj, "/projects/opioid/vault/pre_mapping_dim240_knn40_res0.04_seed1984.rds")
-premap_obj <- readRDS("/projects/opioid/vault96/pre_mapping_dim240_knn40_res0.04_seed1984.rds")
-
-DimPlot(premap_obj,label=T, raster=FALSE)
-
-labeled_obj <- premap_obj
-#Note: these assignments are ONLY TRUE if 2:40/40/0.05 is used and only for this data!
-cluster_to_celltype <- c(
-  "0" = "Oligodendrocyte",
-  "1" = "Glutamatergic neurons",
-  "2" = "Astrocyte",
-  "3" = "Microglia",
-  "4" = "GABAergic neurons",
-  "5" = "GABAergic neurons",
-  "6" = "Oligodendrocyte \nprecursor cells",
-  "7" = "Endothelial",
-  "8" = "Mature Neurons",
-  "9" = "Unknown", # Myelinating Schwann Cells"
-  "10" = "Glutamatergic neurons",
-  "11" = "Dopaminergic neurons",
-  "12" = "" #Endothelial cells per sctype
+# === STEP 1: Run Harmony with saved settings (reproducible) ===
+set.seed(harmony_settings$random_seed)
+harmony_obj <- harmonize_both(
+  merged_obj,
+  harmony_max_iter = harmony_settings$max_iter,
+  harmony_project.dim = harmony_settings$project_dim,
+  harmony_dims = harmony_settings$dims_use
 )
 
-labeled_obj$celltypes <- cluster_to_celltype[as.character(labeled_obj$seurat_clusters)]
-labeled_obj$celltypes <- unname(cluster_to_celltype[as.character(labeled_obj$seurat_clusters)])
+# === STEP 2: Apply clustering settings ===
+dims <- cluster_settings$dims_min:cluster_settings$dims_max
 
+clustered_obj <- FMMN_task(harmony_obj,
+                          dims_pca = dims,
+                          dims_harmony = dims,
+                          knn = cluster_settings$knn)
+
+clustered_obj <- cluster_data(clustered_obj,
+                             alg = cluster_settings$algorithm,
+                             res = cluster_settings$resolution,
+                             cluster_seed = cluster_settings$random_seed)
+
+clustered_obj <- RunUMAP(clustered_obj, reduction = "harmony", dims = dims)
+
+# === STEP 3: Apply cell type labels ===
+cluster_ids <- as.numeric(as.character(Idents(clustered_obj)))
+clustered_obj$celltypes <- celltype_mapping$celltype[
+  match(cluster_ids, celltype_mapping$cluster)
+]
+
+remove_celltypes <- celltype_mapping$celltype[celltype_mapping$action == "remove"]
+if (length(remove_celltypes) > 0) {
+  clustered_obj <- subset(clustered_obj, subset = celltypes %in% remove_celltypes,
+                         invert = TRUE)
+}
+
+Idents(clustered_obj) <- clustered_obj$celltypes
+
+# === STEP 4: DE/DA ===
+
+#major restructuring occuring, below down is no longer valid!  
 p <- DimPlot(labeled_obj, group.by = "celltypes", label = TRUE, raster=FALSE)
 
 p + coord_cartesian(xlim = c(-17, 10))

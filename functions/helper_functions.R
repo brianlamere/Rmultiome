@@ -157,6 +157,30 @@ read_kde_settings <- function(kde_settings_file){
   return(kde_settings_read)
 }
 
+read_cluster_settings <- function(cluster_settings_file = cluster_settings_file){
+  if (!file.exists(cluster_settings_file)) {
+    stop(sprintf("Cluster settings file not found: %s", cluster_settings_file))
+  }
+  cluster_settings_read <- readRDS(cluster_settings_file)
+  return(cluster_settings_read)
+}
+
+read_celltype_settings <- function(celltype_settings_file = celltype_settings_file){
+  if (!file.exists(celltype_settings_file)) {
+    stop(sprintf("Celltype settings file not found: %s", celltype_settings_file))
+  }
+  celltype_settings_read <- readRDS(celltype_settings_file)
+  return(celltype_settings_read)
+}
+
+read_harmony_settings <- function(harmony_settings_file = harmony_settings_file){
+  if (!file.exists(harmony_settings_file)) {
+    stop(sprintf("harmony settings file not found: %s", harmony_settings_file))
+  }
+  harmony_settings_read <- readRDS(harmony_settings_file)
+  return(harmony_settings_read)
+}
+
 verify_trimming_settings <- function(trimming_settings, my_trimming_settings,
                                      quiet = FALSE) {
   sample_name <- my_trimming_settings$sample

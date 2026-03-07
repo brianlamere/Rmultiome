@@ -22,7 +22,8 @@ post_merge_atac <- function(pm_atac_obj) {
 }
 
 harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
-                         harmony_project.dim = FALSE) {
+                         harmony_project.dim = FALSE,
+                         harmony_dims = NULL) {  # NEW PARAMETER
   DefaultAssay(harmony_obj) <- "RNA"
   harmony_obj <- RunHarmony(
     harmony_obj,
@@ -30,17 +31,17 @@ harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
     reduction.use = "pca",
     plot_convergence = TRUE,
     max_iter = harmony_max_iter,
-    reduction.save = "harmony"
+    reduction.save = "harmony",
+    dims.use = harmony_dims  # NEW: Pass dims to Harmony
   )
   DefaultAssay(harmony_obj) <- "ATAC"
   harmony_obj <- RunHarmony(
     object = harmony_obj,
     group.by.vars = "orig.ident",
     reduction.use = "lsi",
-    plot_convergence = TRUE,
-    max_iter = harmony_max_iter,
     project.dim = harmony_project.dim,
-    reduction.save = "harmony_atac"
+    max_iter = harmony_max_iter,  # Also added this for consistency
+    dims.use = harmony_dims  # NEW: Exclude same dims from ATAC
   )
   return(harmony_obj)
 }

@@ -1,158 +1,256 @@
 source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
-# Load harmonized data
-harmony_obj <- readRDS(file.path(rdsdir, "harmonized.rds"))
+#load object created at end of run_pipeline1.R
+merged_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
 
-# === STEP 1: Diagnostic checks ===
-# Check for technical bias in PCs
-pc_check <- check_pc_technical_bias(harmony_obj, n_pcs = 10)
+# ============================================================================
+# PHASE 1: Clustering Parameter Selection
+# ============================================================================
+
+# === STEP 1: Check for technical bias in PCs ===
+pc_check <- check_pc_technical_bias(merged_obj, n_pcs = 30)
+
 maybe_new_device(width = 10, height = 8)
 print(pc_check$heatmap)
 
-# Find elbow (informative but not prescriptive)
-elbow <- findElbow(harmony_obj)
-cat(sprintf("Elbow detected at PC%d\n", elbow))
+maybe_new_device(width = 12, height = 6)
+print(pc_check$lineplot)
 
-# === STEP 2: Define parameter sweep ranges ===
-sweep_params <- define_parameter_sweep(
+# Decision: Exclude PC1 based on high technical correlation
+
+# === STEP 2: Run harmony with info from PC1/etc above
+#time for harmony and FindMultiModalNeighbors
+
+# === STEP 2: Decide harmony settings ===
+# Based on PC bias check, decide which PCs to use
+harmony_dims <- 2:50  # Exclude PC1 if technical
+harmony_seed <- 1984
+
+harmony_settings <- list(
+  dims_use = harmony_dims,
+  random_seed = harmony_seed,
+  max_iter = 50,
+  project_dim = FALSE
+)
+
+saveRDS(harmony_settings, harmony_settings_file))
+
+# === STEP 3: Run Harmony for parameter sweep ===
+set.seed(harmony_seed)
+harmony_obj <- harmonize_both(
+  merged_obj,
+  harmony_max_iter = harmony_settings$max_iter,
+  harmony_project.dim = harmony_settings$project_dim,
+  harmony_dims = harmony_settings$dims_use
+)
+
+saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
+
+# === STEP 3: Find elbow (informative but not prescriptive) ===
+# Note: Elbow point is informative but not necessarily optimal for clustering.
+maybe_new_device(width = 10, height = 6)
+print(findElbow(harmony_obj))
+
+# === STEP 4: Run parameter sweep with metrics ===
+sweep_results <- run_parameter_sweep_with_metrics(
+  seurat_obj = harmony_obj,
   dims_range = list(c(2:30), c(2:40), c(2:50)),
   knn_values = c(20, 30, 40, 50),
   res_values = c(0.03, 0.04, 0.05, 0.1, 0.2),
-  exclude_pc1 = TRUE  # Based on PC bias check
+  save_dir = sweep_dir,
+  compute_stability = FALSE  # Set TRUE for finalists if desired
 )
 
-# === STEP 3: Run parameter sweep ===
-sweep_results <- run_parameter_sweep(
-  seurat_obj = harmony_obj,
-  params = sweep_params,
-  save_dir = file.path(rdsdir, "param_sweep"),
-  metrics = c("silhouette", "modularity", "stability")
-)
+# Save full sweep results table
+write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results_full.csv"), 
+         row.names = FALSE)
 
-# === STEP 4: Evaluate results ===
-best_params <- evaluate_sweep_results(sweep_results)
-print(best_params)
+# === STEP 5: Filter based on metrics ===
+filtered_results <- sweep_results %>%
+  filter(n_singletons < 10) %>%           # No excessive fragmentation
+  filter(n_clusters >= 5 & n_clusters <= 20) %>%  # Expected ~9 for brain, allow 5-20
+  filter(modularity > 0.3) %>%            # Some community structure
+  arrange(desc(modularity)) %>%           # Sort by modularity (best first)
+  head(20)                                # Keep top 20 for visual inspection
 
+cat(sprintf("\nFiltered to %d candidates (from %d total)\n",
+           nrow(filtered_results), nrow(sweep_results)))
 
-
-results <- list()
-result_counter <- 1
-# Create an empty data.frame with the desired columns
-init_df <- data.frame(
-  dims_min = numeric(0),
-  dims_max = numeric(0),
-  knn = numeric(0),
-  resolution = numeric(0),
-  variance_total = numeric(0),
-  n_clusters = numeric(0),
-  n_singletons = numeric(0)
-)
-
-# Write the header to the CSV (overwrites any existing file)
-write.table(init_df, file="results_debug.csv", sep=",",
-            row.names=FALSE, col.names=TRUE)
-
-param_grid <- expand.grid(
-  dims_min = c(2),
-  dims_max = c(40),
-  knn = c(40)
-)
-
-resolutions <- c(0.06, 0.1)
-
-for (i in 1:nrow(param_grid)) {
-  # Set parameters for FMMN
-  dims_min <- param_grid$dims_min[i]
-  dims_max <- param_grid$dims_max[i]
-  dims <- dims_min:dims_max
-  knn <- param_grid$knn[i]
-  
-  # Start with a fresh copy for neighbors
-  obj_neighbors <- FMMN_task(merged_obj,
-                             dims_pca = dims,
-                             dims_harmony = dims,
-                             knn = knn)
-  DefaultAssay(obj_clustered) <- "RNA"
-  obj_clustered <- RunPCA(obj_clustered, assay = "RNA",
-                          features = VariableFeatures(obj_clustered))
-  
-  for (resolution in resolutions) {
-    # Optionally: clone the object to ensure clustering doesn't interfere
-    obj_clustered <- obj_neighbors # you can use the same object
-
-    obj_clustered <- cluster_data(obj_clustered, alg = 3, res = resolution,
-                                  cluster_dims = dims)
-    # Save DimPlot
-    plot_file <- paste0("/projects/opioid/parameter_sweep/DimPlot_dims",
-                        dims_min, "-", dims_max, "_knn",
-                        knn, "_res", resolution, ".png")
-    png(plot_file)
-    print(DimPlot(obj_clustered, reduction = "wnn.umap",
-                  group.by = "seurat_clusters", raster = FALSE))
-    dev.off()
-    
-    print(DimPlot(obj_clustered, reduction = "wnn.umap",
-                  group.by = "seurat_clusters", raster = FALSE)) +
-      ggtitle(plot_file)
-    
-    # Collect metrics
-    variance <- Stdev(obj_clustered[["pca"]])^2
-    jackstraw <- obj_clustered[["pca"]]@jackstraw$overall.p.values
-    cluster_assignments <- obj_clustered@meta.data$seurat_clusters
-    singleton_count <- sum(cluster_assignments == "singleton")
-    cluster_count <- length(setdiff(unique(cluster_assignments), "singleton"))
-    
-    # Store results uniquely for each cluster run
-    results[[result_counter]] <- list(
-      params = data.frame(
-        dims_min = dims_min,
-        dims_max = dims_max,
-        knn = knn,
-        resolution = resolution
-      ),
-      variance = variance,
-      jackstraw = jackstraw,
-      n_clusters = cluster_count,
-      n_singletons = singleton_count
-    )
-    row_df <- data.frame(
-      dims_min = dims_min,
-      dims_max = dims_max,
-      knn = knn,
-      resolution = resolution,
-      variance_total = sum(variance[dims_min:dims_max]),
-      n_clusters = cluster_count,
-      n_singletons = singleton_count
-    )
-
-    # Write to CSV (append mode)
-    write.table(row_df, file="/projects/opioid/parameter_sweep/results_debug.csv",
-                append=TRUE, sep=",", row.names=FALSE, col.names=FALSE)
-    result_counter <- result_counter + 1
-  }
+if (nrow(filtered_results) == 0) {
+  stop("No parameter combinations passed filtering criteria. Adjust filter thresholds.")
 }
 
-# Save log file
-write.csv(do.call(rbind, lapply(results, function(x) 
-  data.frame(x$params, n_clusters=x$n_clusters, n_singletons=x$n_singletons))),
-  "parameter_sweep_results1.csv")
+# list the top candidates
+cat("\nTop candidates:\n")
+print(filtered_results[, c("dims_str", "knn", "res", "n_clusters", 
+                          "modularity", "silhouette")])
 
-# Summarize all results
-summary_df <- summarize_results(results)
+# === STEP 6: Visual inspection of finalists ===
+# Opening plots in workspace 9 (Hyprland) or plot pane (RStudio)
 
-# Objective recommendation: best variance & most significant PCs
-best_by_variance <- summary_df[which.max(summary_df$variance_total), ]
-best_by_jackstraw <- summary_df[which.max(summary_df$jackstraw_sig), ]
-# Optionally, filter out excessive singletons
-summary_df_clean <- subset(summary_df, n_singletons < 0.1 * n_clusters)
-best_balanced <- summary_df_clean[which.max(summary_df_clean$variance_total), ]
+for (i in seq_len(nrow(filtered_results))) {
+  param <- filtered_results[i, ]
+  
+  # Load the object for this parameter set
+  obj <- load_sweep_result(sweep_dir, param$dims_str, param$knn, param$res)
+  
+  # Open plot window (to workspace 9 if Hyprland)
+  maybe_new_device_workspace(width = 8, height = 6, 
+                            workspace = 9,
+                            title = "R_ParamSweep")
+  
+  # Create labeled UMAP
+  p <- DimPlot(obj, reduction = "umap", label = TRUE, label.size = 3) +
+    ggtitle(sprintf("Rank #%d: dims=%s, knn=%d, res=%.2f\nn_clusters=%d, mod=%.3f, sil=%.3f",
+                   i, param$dims_str, param$knn, param$res,
+                   param$n_clusters, param$modularity, param$silhouette)) +
+    theme(plot.title = element_text(size = 10))
+  
+  print(p)
+}
 
-# Print recommendations
-print("Best by variance:")
-print(best_by_variance)
-print("Best by jackstraw significance:")
-print(best_by_jackstraw)
-print("Best balanced (few singletons):")
-print(best_balanced)
+# Switch to workspace 9 to review (Hyprland only)
+#if (Sys.getenv("HYPRLAND_INSTANCE_SIGNATURE") != "") {
+#  cat("\nSwitching to workspace 9 for review...\n")
+#  system("hyprctl dispatch workspace 9")
+#}
 
+# === STEP 7: Manual selection ===
+# USER INPUT: Change this to your chosen rank after visual inspection
+chosen_rank <- 3  # CHANGE THIS NUMBER based on visual inspection
+
+chosen_params <- filtered_results[chosen_rank, ]
+
+cat("\n=== Selected Parameters ===\n")
+cat(sprintf("dims: %s\n", chosen_params$dims_str))
+cat(sprintf("knn: %d\n", chosen_params$knn))
+cat(sprintf("resolution: %.3f\n", chosen_params$res))
+cat(sprintf("n_clusters: %d\n", chosen_params$n_clusters))
+cat(sprintf("modularity: %.3f\n", chosen_params$modularity))
+
+# Load the chosen object
+chosen_obj <- load_sweep_result(sweep_dir, chosen_params$dims_str, 
+                               chosen_params$knn, chosen_params$res)
+
+# === STEP 8: Save cluster settings ===
+cluster_settings <- data.frame(
+  dims_min = min(chosen_params$dims[[1]]),
+  dims_max = max(chosen_params$dims[[1]]),
+  knn = chosen_params$knn,
+  resolution = chosen_params$res,
+  algorithm = 3,  # SLM algorithm
+  random_seed = 1984  # For reproducibility
+)
+
+saveRDS(cluster_settings, cluster_settings_file)
+
+
+# ============================================================================
+# PHASE 2: Cell Type Annotation
+# ============================================================================
+
+# === STEP 9: Find marker genes for all clusters ===
+DefaultAssay(chosen_obj) <- "RNA"
+
+all_markers <- FindAllMarkers(chosen_obj, 
+                             only.pos = TRUE,
+                             min.pct = 0.25,
+                             logfc.threshold = 0.25)
+
+# Save all markers for reference
+write.csv(all_markers, 
+          file.path(tmpfiledir, "all_cluster_markers.csv"),
+          row.names = FALSE)
+
+cat(sprintf("All markers saved to: %s\n", 
+           file.path(tmpfiledir, "all_cluster_markers.csv")))
+
+# Show top markers per cluster
+cat("\nTop 5 markers per cluster:\n")
+top_markers <- all_markers %>%
+  group_by(cluster) %>%
+  top_n(n = 5, wt = avg_log2FC)
+
+print(top_markers)
+
+# === STEP 10: Visualize marker genes ===
+cat("\nStep 9: Visualizing marker expression...\n")
+
+# Example: Plot known brain cell type markers
+brain_markers <- c(
+  "SLC17A7",  # Excitatory neurons
+  "GAD1",     # Inhibitory neurons
+  "MBP",      # Oligodendrocytes
+  "GFAP",     # Astrocytes
+  "AIF1",     # Microglia
+  "PDGFRA"    # OPCs
+)
+
+maybe_new_device(width = 12, height = 10)
+print(DotPlot(chosen_obj, features = brain_markers) + 
+      coord_flip() +
+      ggtitle("Known Brain Cell Type Markers"))
+
+maybe_new_device(width = 14, height = 10)
+print(FeaturePlot(chosen_obj, features = brain_markers, ncol = 3))
+
+# === STEP 111: Manual cell type assignment ===
+
+# USER INPUT: Edit this mapping based on marker genes
+# This is an EXAMPLE - adjust based on your actual markers
+celltype_mapping <- data.frame(
+  cluster = 0:8,  # Adjust based on actual number of clusters
+  celltype = c(
+    "Excitatory_Neurons",    # Cluster 0
+    "Inhibitory_Neurons",    # Cluster 1
+    "Oligodendrocytes",      # Cluster 2
+    "Astrocytes",            # Cluster 3
+    "Microglia",             # Cluster 4
+    "OPCs",                  # Cluster 5
+    "Endothelial",           # Cluster 6
+    "Pericytes",             # Cluster 7
+    "Ambiguous"              # Cluster 8 - mark for removal
+  ),
+  action = c(
+    rep("keep", 8),
+    "remove"  # Remove ambiguous cluster
+  ),
+  stringsAsFactors = FALSE
+)
+
+#Current cell type mapping:
+print(celltype_mapping)
+
+# === STEP 12: Save cell type mapping ===
+saveRDS(celltype_mapping, celltype_settings_file)
+
+
+# === STEP 13: Preview cell type assignment ===
+
+# Apply cell types to preview
+cluster_ids <- as.numeric(as.character(Idents(chosen_obj)))
+chosen_obj$celltypes <- celltype_mapping$celltype[match(cluster_ids, 
+                                                        celltype_mapping$cluster)]
+
+# Plot with cell type labels
+maybe_new_device(width = 10, height = 8)
+Idents(chosen_obj) <- chosen_obj$celltypes
+print(DimPlot(chosen_obj, reduction = "umap", label = TRUE) +
+      ggtitle("Cell Type Assignments (Preview)"))
+
+# Show cluster sizes by cell type
+cat("\nCells per cell type:\n")
+print(table(chosen_obj$celltypes))
+
+# ============================================================================
+# Summary
+# ============================================================================
+
+cat("\n\n=== QC MERGED COMPLETE ===\n")
+cat("Outputs saved:\n")
+cat(sprintf("  1. Cluster settings: %s\n", 
+           file.path(project_export, "cluster_settings.csv")))
+cat(sprintf("  2. Cell type mapping: %s\n", 
+           file.path(project_export, "celltype_mapping.csv")))
+cat("\nNext step: Run run_pipeline2.R to apply these settings and perform DE/DA\n")

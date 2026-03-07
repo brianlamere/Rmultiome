@@ -20,6 +20,9 @@ h5filename <- "filtered_feature_bc_matrix.h5"
 # expected at:  paste(cb_datadir, samplename, cellbender_rna_h5filename, sep = "/")
 cellbender_rna_h5filename <- "cellbender_gex_filtered.h5"
 
+# ATAC fragments file name
+atacfilename <- "atac_fragments.tsv.gz"
+
 # Project source code directory
 Rmultiome_path <- file.path(project_base_dir, "Rmultiome")
 
@@ -47,8 +50,17 @@ trimming_settings_file <- file.path(project_outdir, "trimming_settings.Rds")
 # Project KDE settings file
 kde_settings_file <- file.path(project_outdir, "kde_settings.Rds")
 
+#Project Cluster settings file: dims, KNN, resolution
+cluster_settings_file <- file.path(project_outdir, "cluster_settings.Rds")
+
+#Project Celltype Mapping settings file
+celltype_settings_file <- file.path(project_outdir, "celltype_settings.Rds")
+
+#Project Harmony Settings file
+harmony_settings_file <- file.path(project_outdir, "harmony_settings.Rds")
+
 # Reference files directory
 referencedir <- file.path(project_base_dir, "references")
 
-# ATAC fragments file name
-atacfilename <- "atac_fragments.tsv.gz"
+#directory to store temporary files used during parameter sweep
+sweep_dir <- file.path(tmpfiledir, "param_sweep")
