@@ -10,9 +10,9 @@ harmony_settings <- read_harmony_settings(harmony_settings_file)
 merged_obj <- readRDS(file.path(rdsdir, "merged_preharmony.Rds"))
 
 # === STEP 1: Run Harmony with saved settings (reproducible) ===
-set.seed(harmony_settings$random_seed)
 harmony_obj <- harmonize_both(
   merged_obj,
+  random_seed = harmony_settings$random_seed,
   harmony_max_iter = harmony_settings$max_iter,
   harmony_project.dim = harmony_settings$project_dim,
   harmony_dims = harmony_settings$dims_use

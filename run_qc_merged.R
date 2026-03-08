@@ -24,12 +24,10 @@ print(pc_check$lineplot)
 
 # === STEP 2: Decide harmony settings ===
 # Based on PC bias check, decide which PCs to use
-harmony_dims <- 2:50  # Exclude PC1 if technical
-harmony_seed <- 1984
 
 harmony_settings <- list(
-  dims_use = harmony_dims,
-  random_seed = harmony_seed,
+  dims_use = 2:50,
+  random_seed = 1984,
   max_iter = 50,
   project_dim = FALSE
 )
@@ -37,9 +35,9 @@ harmony_settings <- list(
 saveRDS(harmony_settings, harmony_settings_file))
 
 # === STEP 3: Run Harmony for parameter sweep ===
-set.seed(harmony_seed)
 harmony_obj <- harmonize_both(
   merged_obj,
+  random_seed = harmony_settings$random_seed,
   harmony_max_iter = harmony_settings$max_iter,
   harmony_project.dim = harmony_settings$project_dim,
   harmony_dims = harmony_settings$dims_use
