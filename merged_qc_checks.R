@@ -88,7 +88,7 @@ for (i in 1:nrow(param_grid)) {
     obj_clustered <- obj_neighbors # you can use the same object
 
     obj_clustered <- cluster_data(obj_clustered, alg = 3, res = resolution,
-                                  cluster_dims = dims)
+                                  cluster_dims = dims, run_umap = FALSE)
     # Save DimPlot
     plot_file <- paste0("/projects/opioid/parameter_sweep/DimPlot_dims",
                         dims_min, "-", dims_max, "_knn",
