@@ -72,9 +72,8 @@ FMMN_task <- function(FMMN_obj, knn) {
   return(FMMN_obj)
 }
 
-cluster_data <- function(harmony_obj, alg = 3, res = 0.4,
-                         singleton_handling = c("discard", "merge", "keep"),
-                         cluster_seed = 1984) {
+cluster_data <- function(harmony_obj, alg, res, run_umap = TRUE, cluster_seed,
+                         singleton_handling = c("discard", "merge", "keep")) {
   singleton_handling <- match.arg(singleton_handling)
   
   #The DefaultAssay is being set for consistent behavior, not because we're doing
@@ -109,12 +108,14 @@ cluster_data <- function(harmony_obj, alg = 3, res = 0.4,
     }
   }
   
-  harmony_obj <- RunUMAP(
-    harmony_obj,
-    nn.name = "weighted.nn",            # This matches weighted.nn.name above
-    reduction.name = "wnn.umap",
-    reduction.key = "wnnUMAP_"
-  )
+  if (run_umap) {
+    harmony_obj <- RunUMAP(
+      harmony_obj,
+      nn.name = "weighted.nn",            # This matches weighted.nn.name above
+      reduction.name = "wnn.umap",
+      reduction.key = "wnnUMAP_"
+    )
+  }
   return(harmony_obj)
 }
 

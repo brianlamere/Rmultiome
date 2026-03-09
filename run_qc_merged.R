@@ -52,7 +52,7 @@ print(findElbow(harmony_obj))
 sweep_results <- run_parameter_sweep_with_metrics(
   seurat_obj = harmony_obj,
   dims_range = list(c(2:30), c(2:40), c(2:50)),
-  knn_values = c(20, 30, 40, 50),
+  knn_values = c(30, 40, 50),
   res_values = c(0.03, 0.05, 0.1, 0.2),
   alg = 3,                   # SLM algorithm (required parameter)
   cluster_seed = 1984,       # Reproducibility (required parameter)
@@ -75,23 +75,29 @@ filtered_results <- sweep_results %>%
 cat(sprintf("\nFiltered to %d candidates (from %d total)\n",
            nrow(filtered_results), nrow(sweep_results)))
 
-# === STEP 7: Visual inspection of finalists ===
+# === STEP 7: Visual inspection of finalists (in batches) ===
 for (i in seq_len(nrow(filtered_results))) {
   param <- filtered_results[i, ]
 
+  # Load saved object (has clustering, no UMAP yet)
   obj <- load_sweep_result(sweep_dir, param$dims_str, param$knn, param$res)
 
-  maybe_new_device_workspace(width = 8, height = 6, workspace = 9,
-                            title = "R_ParamSweep")
+  # Run UMAP just for this visualization
+  if (!"wnn.umap" %in% names(obj@reductions)) {
+    obj <- RunUMAP(obj, nn.name = "weighted.nn",
+                   reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+  }
 
-  # Create labeled UMAP (removed silhouette from title)
+  maybe_new_device(width = 8, height = 6)
+
   p <- DimPlot(obj, reduction = "wnn.umap", label = TRUE, label.size = 3) +
     ggtitle(sprintf("Rank #%d: dims=%s, knn=%d, res=%.2f\nn_clusters=%d, mod=%.3f",
                    i, param$dims_str, param$knn, param$res,
-                   param$n_clusters, param$modularity)) +
-    theme(plot.title = element_text(size = 10))
+                   param$n_clusters, param$modularity))
 
   print(p)
+  rm(obj, p)
+  gc()
 }
 
 # === STEP 8: Manual selection ===

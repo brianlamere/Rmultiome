@@ -187,12 +187,12 @@ define_parameter_sweep <- function(dims_range, knn_values, res_values) {
 #' @return Data frame with metrics for each parameter combination
 run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
                                              res_values, alg, cluster_seed,
-                                             save_dir = NULL,
+                                             save_dir = NULL, run_umap = FALSE,
                                              compute_stability = FALSE) {
-  # Define parameter combinations
   params <- define_parameter_sweep(dims_range, knn_values, res_values)
 
   cat(sprintf("\n=== Running parameter sweep: %d combinations ===\n", nrow(params)))
+  cat(sprintf("Monitoring memory usage every 5 iterations...\n\n"))
 
   results <- list()
 
@@ -201,32 +201,24 @@ run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
     cat(sprintf("\n[%d/%d] Testing: dims=%s, knn=%d, res=%.3f\n",
                i, nrow(params), param_set$dims_str, param_set$knn, param_set$res))
 
-    # Use shared functions (same as production)
+    # Run FMMN and clustering
     obj <- FMMN_task(seurat_obj, knn = param_set$knn)
+    obj <- cluster_data(obj, alg = alg, res = param_set$res, run_umap = FALSE,
+                       cluster_seed = cluster_seed, singleton_handling = "keep")
 
-    obj <- cluster_data(
-      obj,
-      alg = alg,
-      res = param_set$res,
-      cluster_seed = cluster_seed,
-      singleton_handling = "keep"  # Keep singletons during sweep
-    )
-    # Now obj has clusters and wnn.umap
-
-    # Compute metrics (no reduction/dims needed)
+    # Compute metrics
     metrics <- compute_cluster_metrics(obj)
 
-    # Optional: Test stability (slow, only for finalists)
     if (compute_stability) {
       stability <- test_clustering_stability(obj, param_set, n_runs = 3)
       metrics$stability_ari <- stability
     }
 
-    # Combine parameters and metrics
+    # Store results (only scalars, not the object itself)
     result <- c(as.list(param_set), metrics)
     results[[i]] <- result
 
-    # Optionally save intermediate object
+    # Save object to disk
     if (!is.null(save_dir)) {
       if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
       filename <- sprintf("sweep_dims%s_k%d_r%.3f.rds",
@@ -237,9 +229,23 @@ run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
 
     cat(sprintf("  → %d clusters, modularity=%.3f\n",
                metrics$n_clusters, metrics$modularity))
+
+    # CRITICAL: Explicitly remove object and force garbage collection
+    rm(obj, metrics, result)  # Remove all large objects
+    invisible(gc(verbose = FALSE, full = TRUE))  # Force full GC
+
+    # Memory monitoring every 5 iterations
+    if (i %% 5 == 0) {
+      mem_info <- gc()
+      used_mb <- sum(mem_info[, 2])
+      cat(sprintf("\n  [Memory checkpoint %d/%d: %.1f MB used, %.1f MB max]\n\n",
+                 i, nrow(params), used_mb, sum(mem_info[, 6])))
+    }
   }
 
-  # Convert results to data frame
+  # Final garbage collection before returning
+  gc(verbose = FALSE, full = TRUE)
+
   results_df <- do.call(rbind, lapply(results, function(x) {
     as.data.frame(x[sapply(x, length) == 1], stringsAsFactors = FALSE)
   }))
@@ -263,4 +269,28 @@ load_sweep_result <- function(sweep_dir, dims_str, knn, res) {
   }
 
   readRDS(filepath)
+}
+
+#' Check system memory availability
+#' @return Available memory in GB
+check_available_memory <- function() {
+  # Read /proc/meminfo
+  meminfo <- readLines("/proc/meminfo")
+
+  # Extract MemAvailable
+  avail_line <- grep("^MemAvailable:", meminfo, value = TRUE)
+  avail_kb <- as.numeric(gsub("^MemAvailable:\\s+(\\d+).*", "\\1", avail_line))
+
+  avail_gb <- avail_kb / 1024 / 1024
+  return(avail_gb)
+}
+
+#' Warn if memory is getting low
+check_memory_threshold <- function(threshold_gb = 50) {
+  avail <- check_available_memory()
+  if (avail < threshold_gb) {
+    warning(sprintf("Low memory warning: Only %.1f GB available (threshold: %d GB)",
+                   avail, threshold_gb))
+  }
+  return(avail)
 }
