@@ -23,7 +23,7 @@ post_merge_atac <- function(pm_atac_obj) {
 
 harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
                          harmony_project.dim = FALSE,
-                         harmony_dims = NULL, random_seed = NULL) {  # NEW PARAMETER
+                         harmony_dims = NULL, random_seed = NULL) { 
   DefaultAssay(harmony_obj) <- "RNA"
   if (!is.null(random_seed)) {
     set.seed(random_seed)
@@ -34,10 +34,11 @@ harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
     reduction.use = "pca",
     plot_convergence = TRUE,
     max_iter = harmony_max_iter,
-    reduction.save = "harmony",
+    reduction.save = reduction.save.RNA,
     project.dim = harmony_project.dim,
-    dims.use = harmony_dims  # NEW: Pass dims to Harmony
+    dims.use = harmony_dims
   )
+
   DefaultAssay(harmony_obj) <- "ATAC"
   if (!is.null(random_seed)) {
     set.seed(random_seed)
@@ -47,26 +48,31 @@ harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
     group.by.vars = "orig.ident",
     reduction.use = "lsi",
     project.dim = harmony_project.dim,
-    max_iter = harmony_max_iter,  # Also added this for consistency
-    dims.use = harmony_dims  # NEW: Exclude same dims from ATAC
+    max_iter = harmony_max_iter,
+    reduction.save = reduction.save.ATAC,
+    dims.use = harmony_dims
   )
   return(harmony_obj)
 }
 
-FMMN_task <- function(FMMN_obj, dims_pca = 2:30, dims_harmony = 2:30, knn = 40) {
+FMMN_task <- function(FMMN_obj, knn) {
+  # Get number of dimensions from harmony reductions
+  n_dims_rna <- ncol(Embeddings(FMMN_obj, reduction.save.RNA))
+  n_dims_atac <- ncol(Embeddings(FMMN_obj, reduction.save.ATAC))
+
   FMMN_obj <- FindMultiModalNeighbors(
     object = FMMN_obj,
-    reduction.list = list("pca", "harmony"),
+    reduction.list = list(reduction.save.RNA, reduction.save.ATAC),
+    dims.list = list(1:n_dims_rna, 1:n_dims_atac),  # Use all harmony dims
     k.nn = knn,
     knn.graph.name = "wknn",
     snn.graph.name = "wsnn",
-    weighted.nn.name = "weighted.nn",
-    dims.list = list(dims_pca, dims_harmony)
+    weighted.nn.name = "weighted.nn"
   )
   return(FMMN_obj)
 }
 
-cluster_data <- function(harmony_obj, alg = 3, res = 0.4, cluster_dims = 2:50,
+cluster_data <- function(harmony_obj, alg = 3, res = 0.4,
                          singleton_handling = c("discard", "merge", "keep"),
                          cluster_seed = 1984) {
   singleton_handling <- match.arg(singleton_handling)

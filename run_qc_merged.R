@@ -19,9 +19,6 @@ print(pc_check$lineplot)
 
 # Decision: Exclude PC1 based on high technical correlation
 
-# === STEP 2: Run harmony with info from PC1/etc above
-#time for harmony and FindMultiModalNeighbors
-
 # === STEP 2: Decide harmony settings ===
 # Based on PC bias check, decide which PCs to use
 
@@ -44,80 +41,61 @@ harmony_obj <- harmonize_both(
 )
 
 saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
+#harmony_obj <- readRDS(file.path(rdsdir, "harmonized.rds"))
 
-# === STEP 3: Find elbow (informative but not prescriptive) ===
+# === STEP 4: Find elbow (informative but not prescriptive) ===
 # Note: Elbow point is informative but not necessarily optimal for clustering.
 maybe_new_device(width = 10, height = 6)
 print(findElbow(harmony_obj))
 
-# === STEP 4: Run parameter sweep with metrics ===
+# === STEP 5: Run parameter sweep with metrics ===
 sweep_results <- run_parameter_sweep_with_metrics(
   seurat_obj = harmony_obj,
   dims_range = list(c(2:30), c(2:40), c(2:50)),
   knn_values = c(20, 30, 40, 50),
-  res_values = c(0.03, 0.04, 0.05, 0.1, 0.2),
+  res_values = c(0.03, 0.05, 0.1, 0.2),
+  alg = 3,                   # SLM algorithm (required parameter)
+  cluster_seed = 1984,       # Reproducibility (required parameter)
   save_dir = sweep_dir,
-  compute_stability = FALSE  # Set TRUE for finalists if desired
+  compute_stability = FALSE  # Skip during initial sweep (too slow)
 )
 
 # Save full sweep results table
-write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results_full.csv"), 
+write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results_full.csv"),
          row.names = FALSE)
 
-# === STEP 5: Filter based on metrics ===
+# === STEP 6: Filter based on metrics ===
 filtered_results <- sweep_results %>%
-  filter(n_singletons < 10) %>%           # No excessive fragmentation
-  filter(n_clusters >= 5 & n_clusters <= 20) %>%  # Expected ~9 for brain, allow 5-20
-  filter(modularity > 0.3) %>%            # Some community structure
-  arrange(desc(modularity)) %>%           # Sort by modularity (best first)
-  head(20)                                # Keep top 20 for visual inspection
+  filter(n_singletons < 10) %>%
+  filter(n_clusters >= 5 & n_clusters <= 20) %>%
+  filter(modularity > 0.3) %>%
+  arrange(desc(modularity)) %>%
+  head(20)
 
 cat(sprintf("\nFiltered to %d candidates (from %d total)\n",
            nrow(filtered_results), nrow(sweep_results)))
 
-if (nrow(filtered_results) == 0) {
-  stop("No parameter combinations passed filtering criteria. Adjust filter thresholds.")
-}
-
-# list the top candidates
-cat("\nTop candidates:\n")
-print(filtered_results[, c("dims_str", "knn", "res", "n_clusters", 
-                          "modularity", "silhouette")])
-
-# === STEP 6: Visual inspection of finalists ===
-# Opening plots in workspace 9 (Hyprland) or plot pane (RStudio)
-
+# === STEP 7: Visual inspection of finalists ===
 for (i in seq_len(nrow(filtered_results))) {
   param <- filtered_results[i, ]
-  
-  # Load the object for this parameter set
+
   obj <- load_sweep_result(sweep_dir, param$dims_str, param$knn, param$res)
-  
-  # Open plot window (to workspace 9 if Hyprland)
-  maybe_new_device_workspace(width = 8, height = 6, 
-                            workspace = 9,
+
+  maybe_new_device_workspace(width = 8, height = 6, workspace = 9,
                             title = "R_ParamSweep")
-  
-  # Create labeled UMAP
-  p <- DimPlot(obj, reduction = "umap", label = TRUE, label.size = 3) +
-    ggtitle(sprintf("Rank #%d: dims=%s, knn=%d, res=%.2f\nn_clusters=%d, mod=%.3f, sil=%.3f",
+
+  # Create labeled UMAP (removed silhouette from title)
+  p <- DimPlot(obj, reduction = "wnn.umap", label = TRUE, label.size = 3) +
+    ggtitle(sprintf("Rank #%d: dims=%s, knn=%d, res=%.2f\nn_clusters=%d, mod=%.3f",
                    i, param$dims_str, param$knn, param$res,
-                   param$n_clusters, param$modularity, param$silhouette)) +
+                   param$n_clusters, param$modularity)) +
     theme(plot.title = element_text(size = 10))
-  
+
   print(p)
 }
 
-# Switch to workspace 9 to review (Hyprland only)
-#if (Sys.getenv("HYPRLAND_INSTANCE_SIGNATURE") != "") {
-#  cat("\nSwitching to workspace 9 for review...\n")
-#  system("hyprctl dispatch workspace 9")
-#}
-
-# === STEP 7: Manual selection ===
-# USER INPUT: Change this to your chosen rank after visual inspection
-chosen_rank <- 3  # CHANGE THIS NUMBER based on visual inspection
-
+# === STEP 8: Manual selection ===
+chosen_rank <- 3
 chosen_params <- filtered_results[chosen_rank, ]
 
 cat("\n=== Selected Parameters ===\n")
@@ -127,11 +105,7 @@ cat(sprintf("resolution: %.3f\n", chosen_params$res))
 cat(sprintf("n_clusters: %d\n", chosen_params$n_clusters))
 cat(sprintf("modularity: %.3f\n", chosen_params$modularity))
 
-# Load the chosen object
-chosen_obj <- load_sweep_result(sweep_dir, chosen_params$dims_str, 
-                               chosen_params$knn, chosen_params$res)
-
-# === STEP 8: Save cluster settings ===
+# === STEP 9: Save cluster settings ===
 cluster_settings <- data.frame(
   dims_min = min(chosen_params$dims[[1]]),
   dims_max = max(chosen_params$dims[[1]]),
@@ -148,7 +122,7 @@ saveRDS(cluster_settings, cluster_settings_file)
 # PHASE 2: Cell Type Annotation
 # ============================================================================
 
-# === STEP 9: Find marker genes for all clusters ===
+# === STEP 10: Find marker genes for all clusters ===
 DefaultAssay(chosen_obj) <- "RNA"
 
 all_markers <- FindAllMarkers(chosen_obj, 
@@ -172,7 +146,7 @@ top_markers <- all_markers %>%
 
 print(top_markers)
 
-# === STEP 10: Visualize marker genes ===
+# === STEP 11: Visualize marker genes ===
 cat("\nStep 9: Visualizing marker expression...\n")
 
 # Example: Plot known brain cell type markers
@@ -193,7 +167,7 @@ print(DotPlot(chosen_obj, features = brain_markers) +
 maybe_new_device(width = 14, height = 10)
 print(FeaturePlot(chosen_obj, features = brain_markers, ncol = 3))
 
-# === STEP 111: Manual cell type assignment ===
+# === STEP 12: Manual cell type assignment ===
 
 # USER INPUT: Edit this mapping based on marker genes
 # This is an EXAMPLE - adjust based on your actual markers
@@ -220,11 +194,11 @@ celltype_mapping <- data.frame(
 #Current cell type mapping:
 print(celltype_mapping)
 
-# === STEP 12: Save cell type mapping ===
+# === STEP 13: Save cell type mapping ===
 saveRDS(celltype_mapping, celltype_settings_file)
 
 
-# === STEP 13: Preview cell type assignment ===
+# === STEP 14: Preview cell type assignment ===
 
 # Apply cell types to preview
 cluster_ids <- as.numeric(as.character(Idents(chosen_obj)))
@@ -252,3 +226,6 @@ cat(sprintf("  1. Cluster settings: %s\n",
 cat(sprintf("  2. Cell type mapping: %s\n", 
            file.path(project_export, "celltype_mapping.csv")))
 cat("\nNext step: Run run_pipeline2.R to apply these settings and perform DE/DA\n")
+
+cat("\nTop candidates:\n")
+print(filtered_results[, c("dims_str", "knn", "res", "n_clusters", "modularity")])

@@ -5,9 +5,6 @@
 #' @param reduction Name of reduction to use (default "pca")
 #' @return ggplot object showing correlation heatmap
 check_pc_technical_bias <- function(seurat_obj, n_pcs = 10, reduction = "pca") {
-  require(ggplot2)
-  require(reshape2)
-  
   # Technical covariates to test
   covariates <- c("percent.mt", "nCount_RNA", "nFeature_RNA", 
                   "TSS.enrichment", "nCount_ATAC", "nFeature_ATAC")
@@ -84,9 +81,6 @@ check_pc_technical_bias <- function(seurat_obj, n_pcs = 10, reduction = "pca") {
 #' @return List of metric values
 compute_cluster_metrics <- function(seurat_obj, reduction = "pca",
                                    dims = 2:30) {
-  require(cluster)
-  require(igraph)
-
   clusters <- Idents(seurat_obj)
   embeddings <- Embeddings(seurat_obj, reduction = reduction)[, dims]
 
@@ -133,8 +127,6 @@ compute_cluster_metrics <- function(seurat_obj, reduction = "pca",
 #' @param n_runs Number of times to re-run clustering
 #' @return Adjusted Rand Index (ARI) between runs (higher = more stable)
 test_clustering_stability <- function(seurat_obj, params, n_runs = 5) {
-  require(mclust)  # for adjustedRandIndex
-
   clustering_results <- list()
 
   for (i in 1:n_runs) {
@@ -198,7 +190,8 @@ define_parameter_sweep <- function(dims_range, knn_values, res_values) {
 #' @param compute_stability Whether to test clustering stability (slow)
 #' @return Data frame with metrics for each parameter combination
 run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
-                                             res_values, save_dir = NULL,
+                                             res_values, alg, cluster_seed,
+                                             save_dir = NULL,
                                              compute_stability = FALSE) {
   # Define parameter combinations
   params <- define_parameter_sweep(dims_range, knn_values, res_values)
@@ -212,32 +205,20 @@ run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
     cat(sprintf("\n[%d/%d] Testing: dims=%s, knn=%d, res=%.3f\n",
                i, nrow(params), param_set$dims_str, param_set$knn, param_set$res))
 
-    # Run FMMN with this parameter set
-    obj <- FindMultiModalNeighbors(
-      object = seurat_obj,
-      reduction.list = list("pca", "harmony"),
-      dims.list = list(param_set$dims[[1]], param_set$dims[[1]]),
-      k.nn = param_set$knn,
-      knn.graph.name = "wknn",
-      snn.graph.name = "wsnn",
-      weighted.nn.name = "weighted.nn"
-    )
+    # Use shared functions (same as production)
+    obj <- FMMN_task(seurat_obj, knn = param_set$knn)
 
-    # Cluster with this resolution
-    obj <- FindClusters(
+    obj <- cluster_data(
       obj,
-      graph.name = "wsnn",
-      algorithm = 3,
-      resolution = param_set$res,
-      random.seed = 1984
+      alg = alg,
+      res = param_set$res,
+      cluster_seed = cluster_seed,
+      singleton_handling = "keep"  # Keep singletons during sweep
     )
+    # Now obj has clusters and wnn.umap
 
-    # Compute UMAP for visualization
-    obj <- RunUMAP(obj, reduction = "harmony", dims = param_set$dims[[1]])
-
-    # Compute metrics
-    metrics <- compute_cluster_metrics(obj, reduction = "harmony",
-                                      dims = param_set$dims[[1]])
+    # Compute metrics (no reduction/dims needed)
+    metrics <- compute_cluster_metrics(obj)
 
     # Optional: Test stability (slow, only for finalists)
     if (compute_stability) {
@@ -258,13 +239,13 @@ run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
       saveRDS(obj, file.path(save_dir, filename))
     }
 
-    cat(sprintf("  → %d clusters, modularity=%.3f, silhouette=%.3f\n",
-               metrics$n_clusters, metrics$modularity, metrics$silhouette))
+    cat(sprintf("  → %d clusters, modularity=%.3f\n",
+               metrics$n_clusters, metrics$modularity))
   }
 
   # Convert results to data frame
   results_df <- do.call(rbind, lapply(results, function(x) {
-    as.data.frame(x, stringsAsFactors = FALSE)
+    as.data.frame(x[sapply(x, length) == 1], stringsAsFactors = FALSE)
   }))
 
   return(results_df)

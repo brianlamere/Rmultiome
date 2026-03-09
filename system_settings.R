@@ -64,3 +64,8 @@ referencedir <- file.path(project_base_dir, "references")
 
 #directory to store temporary files used during parameter sweep
 sweep_dir <- file.path(tmpfiledir, "param_sweep")
+
+# Multiomic, needing to have two different reductions available
+# Defining here only so that they aren't defined in a script
+reduction.save.RNA = "harmony_rna"
+reduction.save.ATAC = "harmony_ATAC"
