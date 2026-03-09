@@ -79,19 +79,16 @@ check_pc_technical_bias <- function(seurat_obj, n_pcs = 10, reduction = "pca") {
 #' @param seurat_obj Seurat object with clustering
 #' @param reduction Which reduction to use for silhouette/distance
 #' @return List of metric values
-compute_cluster_metrics <- function(seurat_obj, reduction = "pca",
-                                   dims = 2:30) {
-  clusters <- Idents(seurat_obj)
-  embeddings <- Embeddings(seurat_obj, reduction = reduction)[, dims]
+#' Compute clustering quality metrics
+#' @param seurat_obj Seurat object with clustering
+#' @return List of metric values
+compute_cluster_metrics <- function(seurat_obj) {
+  require(igraph)
 
-  # Silhouette score (range -1 to 1, higher = better separated clusters)
-  # BUT: Can favor over-clustering
-  dist_matrix <- dist(embeddings)
-  sil <- silhouette(as.numeric(clusters), dist_matrix)
-  silhouette_avg <- mean(sil[, 3])
+  clusters <- Idents(seurat_obj)
 
   # Modularity (from graph, higher = better community structure)
-  # More biologically relevant for scRNA-seq
+  # Graph-based clustering (Louvain/SLM/Leiden) optimizes this metric
   graph <- seurat_obj@graphs$wsnn
   if (!is.null(graph)) {
     ig <- graph_from_adjacency_matrix(as.matrix(graph), mode = "undirected",
@@ -110,7 +107,6 @@ compute_cluster_metrics <- function(seurat_obj, reduction = "pca",
   n_clusters <- length(unique(clusters))
 
   list(
-    silhouette = silhouette_avg,
     modularity = modularity_score,
     n_clusters = n_clusters,
     n_singletons = n_singletons,
