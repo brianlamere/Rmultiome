@@ -1,0 +1,8 @@
+celltype,gene,notes
+Oligodendrocytes,MBP,Core marker
+Oligodendrocytes,MOG,Core marker
+Oligodendrocytes,PLP1,Core marker
+Oligodendrocytes,MOBP,Core marker
+...
+Stress_markers,FOS,Important for stressed tissue
+Stress_markers,JUN,Important for stressed tissue
