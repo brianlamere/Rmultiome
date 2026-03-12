@@ -76,10 +76,10 @@ print(sweep_results[order(sweep_results$n_clusters), ])
 cat("\n=== SET YOUR CHOSEN PARAMETERS BELOW ===\n")
 
 # After reviewing plots, set these to your chosen values:
-chosen_dims_min <- 2      # CHANGE THIS
-chosen_dims_max <- 40     # CHANGE THIS
+chosen_dims_min <- 1      # CHANGE THIS
+chosen_dims_max <- 44     # CHANGE THIS
 chosen_knn <- 40          # CHANGE THIS
-chosen_resolution <- 0.05 # CHANGE THIS
+chosen_resolution <- 0.16 # CHANGE THIS
 
 # === STEP 7: Save cluster settings ===
 cluster_settings <- data.frame(
@@ -93,15 +93,119 @@ cluster_settings <- data.frame(
 
 saveRDS(cluster_settings, cluster_settings_file)
 
-fmmn_obj <- FMMN_task(harmony_obj, knn = 40, dims = 1:44)
-clustered_obj <- cluster_data(fmmn_obj, alg = 3, res = 0.16,
-                           cluster_seed = 1984,
-			   singleton_handling = "keep")
-DimPlot(premap_obj,label=T, raster=FALSE)
+# hack code keeping briefly
+# fmmn_obj <- FMMN_task(harmony_obj, knn = 40, dims = 1:44)
+# clustered_obj <- cluster_data(fmmn_obj, alg = 3, res = 0.16,
+#                            cluster_seed = 1984,
+# 			   singleton_handling = "keep")
+# DimPlot(premap_obj,label=T, raster=FALSE)
+
+# === STEP 8: Create final clustered object from settings ===
+cat("\n=== STEP 8: Applying cluster settings ===\n")
+
+# Read the settings you just saved
+dims <- cluster_settings$dims_min:cluster_settings$dims_max
+
+cat(sprintf("Clustering with: dims=%d:%d, knn=%d, res=%.3f\n",
+           cluster_settings$dims_min, cluster_settings$dims_max,
+           cluster_settings$knn, cluster_settings$resolution))
+
+# Apply FMMN
+cat("Running FindMultiModalNeighbors...\n")
+chosen_obj <- FMMN_task(harmony_obj,
+                       knn = cluster_settings$knn,
+                       dims = dims)
+
+# Apply clustering
+cat("Clustering...\n")
+chosen_obj <- cluster_data(
+  chosen_obj,
+  alg = cluster_settings$algorithm,
+  res = cluster_settings$resolution,
+  cluster_seed = cluster_settings$random_seed,
+  singleton_handling = "keep",
+  run_umap = TRUE
+)
+
+# Quick summary
+n_clusters <- length(unique(Idents(chosen_obj))) -
+              (if("singleton" %in% levels(Idents(chosen_obj))) 1 else 0)
+n_singletons <- sum(Idents(chosen_obj) == "singleton")
+
+cat(sprintf("Result: %d clusters, %d singletons (%.2f%%)\n",
+           n_clusters, n_singletons,
+           100 * n_singletons / ncol(chosen_obj)))
+
+# Quick viz
+maybe_new_device(width = 10, height = 8)
+print(DimPlot(chosen_obj, reduction = "wnn.umap", label = TRUE, raster = FALSE))
+
+# Save
+saveRDS(chosen_obj, file.path(rdsdir, "chosen_clustered_obj.rds"))
+cat(sprintf("Saved to: %s\n", file.path(rdsdir, "chosen_clustered_obj.rds")))
 
 # ============================================================================
 # PHASE 2: Cell Type Annotation
 # ============================================================================
+
+# === STEP 9: Define and save marker panels ===
+cat("\n=== STEP 9: Setting up marker panels ===\n")
+
+# Define markers for YOUR tissue (stressed brain nuclei)
+marker_panels <- data.frame(
+  celltype = c(
+    rep("Oligodendrocytes", 6),
+    rep("OPCs", 4),
+    rep("Astrocytes", 6),
+    rep("Microglia", 5),
+    rep("Excitatory_Neurons", 4),
+    rep("Inhibitory_Neurons", 6),
+    rep("Endothelial", 4),
+    rep("Stress_markers", 7)
+  ),
+  gene = c(
+    # Oligodendrocytes (from your manual_mapping2.R)
+    "MBP", "MOBP", "PLP1", "MOG", "MAG", "CNP",
+    # OPCs
+    "VCAN", "PDGFRA", "PCDH15", "OLIG1",
+    # Astrocytes
+    "GFAP", "ALDH1L1", "GLUL", "AQP4", "SLC1A2", "SLC4A4",
+    # Microglia
+    "CSF1R", "APBB1IP", "P2RY12", "AIF1", "CX3CR1",
+    # Excitatory neurons
+    "SLC17A7", "CAMK2A", "SATB2", "TBR1",
+    # Inhibitory neurons (from your manual_mapping2.R)
+    "GAD1", "GAD2", "SLC32A1", "VIP", "SST", "PVALB",
+    # Endothelial
+    "FLT1", "CLDN5", "KDR", "VWF",
+    # Stress markers (important for YOUR study!)
+    "FOS", "JUN", "JUNB", "HSPA1A", "HSPA1B", "ATF3", "DDIT3"
+  ),
+  notes = c(
+    rep("Core oligodendrocyte markers", 6),
+    rep("Oligodendrocyte precursors", 4),
+    rep("Core astrocyte markers", 6),
+    rep("Core microglia markers", 5),
+    rep("Excitatory neuron markers", 4),
+    rep("Inhibitory neuron markers", 6),
+    rep("Endothelial markers", 4),
+    rep("Stress/activation markers - critical for this study", 7)
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Save as project data
+write.csv(marker_panels,
+         file.path(project_outdir, "marker_panels.csv"),
+         row.names = FALSE)
+
+cat(sprintf("Marker panels saved to: %s\n",
+           file.path(project_outdir, "marker_panels.csv")))
+cat("\nWARNING: These markers are optimized for stressed brain nuclei.\n")
+cat("For other tissue types, edit marker_panels.csv before running.\n")
+
+# Also save as RDS for easy loading
+saveRDS(marker_panels, file.path(project_outdir, "marker_panels.rds"))
 
 # === STEP 10: Find marker genes for all clusters ===
 DefaultAssay(chosen_obj) <- "RNA"

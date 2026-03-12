@@ -1,4 +1,5 @@
 #manual mapping
+# find these markers associated with HIV stress: NfL, MAP2, Synaptophysin, PSD-95, 8-OHdG
 
 ## Oligodendrocytes
 DefaultAssay(labeled_obj) <- "RNA"
@@ -9,6 +10,7 @@ DotPlot(object = labeled_obj, features = c("MBP","MOBP","PLP1","MOG"))
 labeled_obj$celltypes[labeled_obj$celltypes == "0"] <- "Oligodendrocyte"
 
 ## Astrocytes
+# consider adding:  YKL-40 (CHI3L1), S100B
 DefaultAssay(labeled_obj) <- "RNA"
 FeaturePlot(labeled_obj, features = c("GFAP","ALDH1L1","GLUL","AQP4","SLC1A2","SLC4A4"), raster=FALSE)
 DotPlot(object = labeled_obj, features = c("GFAP","ALDH1L1","GLUL","AQP4","SLC1A2","SLC4A4"))
@@ -16,11 +18,15 @@ DotPlot(object = labeled_obj, features = c("GFAP","ALDH1L1","GLUL","AQP4","SLC1A
 labeled_obj$celltypes[labeled_obj$celltypes=="2"] <- "Astrocyte"
 
 ## Microglia
+# consider adding: CD163, sCD163, Iba-1, CD68, TREM2, GBP2, ACSL1, NAMPT, DPYD
 DefaultAssay(labeled_obj) <- "RNA"
 FeaturePlot(labeled_obj, features = c("CSF1R","APBB1IP","P2RY12"), raster=FALSE)
 DotPlot(object = labeled_obj, features = c("CSF1R","APBB1IP","P2RY12"))
 
 labeled_obj$celltypes[labeled_obj$celltypes=="3"] <- "Microglia"
+
+## Macrophages
+# consider adding:  CD163, sCD163, CD14, sCD14 
 
 ##########################################
 #focus on above cell types
