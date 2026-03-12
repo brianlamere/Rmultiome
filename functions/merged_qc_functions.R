@@ -75,77 +75,6 @@ check_pc_technical_bias <- function(seurat_obj, n_pcs = 10, reduction = "pca") {
   list(heatmap = p1, lineplot = p2, cor_matrix = cor_matrix)
 }
 
-#' Compute clustering quality metrics
-#' @param seurat_obj Seurat object with clustering
-#' @param reduction Which reduction to use for silhouette/distance
-#' @return List of metric values
-#' Compute clustering quality metrics
-#' @param seurat_obj Seurat object with clustering
-#' @return List of metric values
-compute_cluster_metrics <- function(seurat_obj) {
-  require(igraph)
-
-  clusters <- Idents(seurat_obj)
-
-  # Modularity (from graph, higher = better community structure)
-  # Graph-based clustering (Louvain/SLM/Leiden) optimizes this metric
-  graph <- seurat_obj@graphs$wsnn
-  if (!is.null(graph)) {
-    ig <- graph_from_adjacency_matrix(as.matrix(graph), mode = "undirected",
-                                     weighted = TRUE)
-    modularity_score <- modularity(ig, as.numeric(clusters))
-  } else {
-    modularity_score <- NA
-  }
-
-  # Cluster size distribution (detect over-fragmentation)
-  cluster_sizes <- table(clusters)
-  n_singletons <- sum(cluster_sizes == 1)
-  size_cv <- sd(cluster_sizes) / mean(cluster_sizes)  # coefficient of variation
-
-  # Number of clusters
-  n_clusters <- length(unique(clusters))
-
-  list(
-    modularity = modularity_score,
-    n_clusters = n_clusters,
-    n_singletons = n_singletons,
-    size_cv = size_cv,
-    median_cluster_size = median(cluster_sizes),
-    min_cluster_size = min(cluster_sizes),
-    max_cluster_size = max(cluster_sizes)
-  )
-}
-
-#' Test clustering stability across multiple runs
-#' @param seurat_obj Seurat object
-#' @param params Single parameter set (dims, knn, res)
-#' @param n_runs Number of times to re-run clustering
-#' @return Adjusted Rand Index (ARI) between runs (higher = more stable)
-test_clustering_stability <- function(seurat_obj, params, n_runs = 5) {
-  clustering_results <- list()
-
-  for (i in 1:n_runs) {
-    # Re-run with different seed
-    obj <- FindClusters(seurat_obj, graph.name = "wsnn",
-                       resolution = params$res,
-                       random.seed = i * 1000)
-    clustering_results[[i]] <- Idents(obj)
-  }
-
-  # Compute pairwise ARI between all runs
-  ari_scores <- c()
-  for (i in 1:(n_runs - 1)) {
-    for (j in (i + 1):n_runs) {
-      ari <- adjustedRandIndex(clustering_results[[i]],
-                              clustering_results[[j]])
-      ari_scores <- c(ari_scores, ari)
-    }
-  }
-
-  mean(ari_scores)  # Average stability across runs
-}
-
 #' Define parameter sweep combinations
 #' @param dims_range List of dimension ranges (e.g., list(c(2:30), c(2:40)))
 #' @param knn_values Vector of k-nearest neighbors values
@@ -177,77 +106,109 @@ define_parameter_sweep <- function(dims_range, knn_values, res_values) {
   return(params)
 }
 
-#' Run parameter sweep with metrics
-#' @param seurat_obj Harmonized Seurat object (post-harmony, pre-FMMN)
+#' Run parameter sweep and display plots for visual inspection
+#' @param seurat_obj Harmonized Seurat object
 #' @param dims_range List of dimension ranges
 #' @param knn_values Vector of k values
 #' @param res_values Vector of resolution values
-#' @param save_dir Directory to save intermediate objects (optional)
-#' @param compute_stability Whether to test clustering stability (slow)
-#' @return Data frame with metrics for each parameter combination
-run_parameter_sweep_with_metrics <- function(seurat_obj, dims_range, knn_values,
-                                             res_values, alg, cluster_seed,
-                                             save_dir = NULL, run_umap = FALSE,
-                                             compute_stability = FALSE) {
-  params <- define_parameter_sweep(dims_range, knn_values, res_values)
+#' @param alg Clustering algorithm
+#' @param cluster_seed Random seed
+#' @return Data frame with basic results (for reference only)
+run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
+                                     res_values, alg, cluster_seed) {
 
-  cat(sprintf("\n=== Running parameter sweep: %d combinations ===\n", nrow(params)))
-  cat(sprintf("Monitoring memory usage every 5 iterations...\n\n"))
+  n_combos <- length(dims_range) * length(knn_values) * length(res_values)
+  cat(sprintf("\n=== Parameter Sweep: %d combinations ===\n", n_combos))
+  cat("Plots will be displayed on workspace 9 (Hyprland)\n\n")
 
   results <- list()
+  counter <- 1
 
-  for (i in seq_len(nrow(params))) {
-    param_set <- params[i, ]
-    cat(sprintf("\n[%d/%d] Testing: dims=%s, knn=%d, res=%.3f\n",
-               i, nrow(params), param_set$dims_str, param_set$knn, param_set$res))
+  # OUTER LOOP: dims + knn (run FMMN once per combination)
+  for (dims_idx in seq_along(dims_range)) {
+    dims <- dims_range[[dims_idx]]
+    dims_min <- min(dims)
+    dims_max <- max(dims)
+    dims_str <- sprintf("%d-%d", dims_min, dims_max)
 
-    # Run FMMN and clustering
-    obj <- FMMN_task(seurat_obj, knn = param_set$knn)
-    obj <- cluster_data(obj, alg = alg, res = param_set$res, run_umap = FALSE,
-                       cluster_seed = cluster_seed, singleton_handling = "keep")
+      for (knn in knn_values) {
+        cat(sprintf("\n=== FMMN: dims=%s, knn=%d ===\n",
+                   gsub("-", ":", dims_str), knn))
 
-    # Compute metrics
-    metrics <- compute_cluster_metrics(obj)
+        # NOW passing dims to FMMN_task!
+        obj_fmmn <- FMMN_task(seurat_obj, knn = knn, dims = dims)
 
-    if (compute_stability) {
-      stability <- test_clustering_stability(obj, param_set, n_runs = 3)
-      metrics$stability_ari <- stability
-    }
+      # INNER LOOP: resolutions (reuse FMMN result)
+      for (res in res_values) {
+        cat(sprintf("[%d/%d] dims=%s, knn=%d, res=%.3f ... ",
+                   counter, n_combos, dims_str, knn, res))
 
-    # Store results (only scalars, not the object itself)
-    result <- c(as.list(param_set), metrics)
-    results[[i]] <- result
+        # Copy FMMN result and cluster
+        obj_clustered <- obj_fmmn
+        obj_clustered <- cluster_data(
+          obj_clustered,
+          alg = alg,
+          res = res,
+          cluster_seed = cluster_seed,
+          singleton_handling = "keep",
+          run_umap = TRUE  # Need UMAP for plotting
+        )
 
-    # Save object to disk
-    if (!is.null(save_dir)) {
-      if (!dir.exists(save_dir)) dir.create(save_dir, recursive = TRUE)
-      filename <- sprintf("sweep_dims%s_k%d_r%.3f.rds",
-                         gsub(":", "_", param_set$dims_str),
-                         param_set$knn, param_set$res)
-      saveRDS(obj, file.path(save_dir, filename))
-    }
+        # Get cluster info
+        cluster_assignments <- obj_clustered@meta.data$seurat_clusters
+        singleton_count <- sum(cluster_assignments == "singleton")
+        cluster_count <- length(setdiff(unique(cluster_assignments), "singleton"))
 
-    cat(sprintf("  → %d clusters, modularity=%.3f\n",
-               metrics$n_clusters, metrics$modularity))
+        cat(sprintf("%d clusters (%d singletons)\n", cluster_count, singleton_count))
 
-    # CRITICAL: Explicitly remove object and force garbage collection
-    rm(obj, metrics, result)  # Remove all large objects
-    invisible(gc(verbose = FALSE, full = TRUE))  # Force full GC
+        # Store results
+        results[[counter]] <- list(
+          dims_min = dims_min,
+          dims_max = dims_max,
+          dims_str = dims_str,
+          knn = knn,
+          resolution = res,
+          n_clusters = cluster_count,
+          n_singletons = singleton_count
+        )
 
-    # Memory monitoring every 5 iterations
-    if (i %% 5 == 0) {
-      mem_info <- gc()
-      used_mb <- sum(mem_info[, 2])
-      cat(sprintf("\n  [Memory checkpoint %d/%d: %.1f MB used, %.1f MB max]\n\n",
-                 i, nrow(params), used_mb, sum(mem_info[, 6])))
+        # Display plot on workspace 9
+        maybe_new_device_workspace(width = 8, height = 6, workspace = 9,
+                                   title = "R_ParamSweep")
+
+        plot_title <- sprintf("dims=%s, knn=%d, res=%.3f\n%d clusters (%d singletons)",
+                             dims_str, knn, res, cluster_count, singleton_count)
+
+        p <- DimPlot(obj_clustered, reduction = "wnn.umap",
+                    group.by = "seurat_clusters", label = TRUE, raster = FALSE) +
+          ggtitle(plot_title)
+
+        print(p)
+
+        # Clean up
+        rm(obj_clustered, p)
+        gc(verbose = FALSE)
+
+        counter <- counter + 1
+      }
+
+      # Clean up FMMN result after all resolutions
+      rm(obj_fmmn)
+      gc(verbose = FALSE, full = TRUE)
     }
   }
 
-  # Final garbage collection before returning
-  gc(verbose = FALSE, full = TRUE)
-
+  # Convert results to data frame for reference
   results_df <- do.call(rbind, lapply(results, function(x) {
-    as.data.frame(x[sapply(x, length) == 1], stringsAsFactors = FALSE)
+    data.frame(
+      dims_min = x$dims_min,
+      dims_max = x$dims_max,
+      knn = x$knn,
+      resolution = x$resolution,
+      n_clusters = x$n_clusters,
+      n_singletons = x$n_singletons,
+      stringsAsFactors = FALSE
+    )
   }))
 
   return(results_df)

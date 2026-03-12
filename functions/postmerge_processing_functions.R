@@ -55,15 +55,11 @@ harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
   return(harmony_obj)
 }
 
-FMMN_task <- function(FMMN_obj, knn) {
-  # Get number of dimensions from harmony reductions
-  n_dims_rna <- ncol(Embeddings(FMMN_obj, reduction.save.RNA))
-  n_dims_atac <- ncol(Embeddings(FMMN_obj, reduction.save.ATAC))
-
+FMMN_task <- function(FMMN_obj, knn, dims) {
   FMMN_obj <- FindMultiModalNeighbors(
     object = FMMN_obj,
     reduction.list = list(reduction.save.RNA, reduction.save.ATAC),
-    dims.list = list(1:n_dims_rna, 1:n_dims_atac),  # Use all harmony dims
+    dims.list = list(dims, dims),  # Use all harmony dims
     k.nn = knn,
     knn.graph.name = "wknn",
     snn.graph.name = "wsnn",
@@ -72,7 +68,7 @@ FMMN_task <- function(FMMN_obj, knn) {
   return(FMMN_obj)
 }
 
-cluster_data <- function(harmony_obj, alg, res, run_umap = TRUE, cluster_seed,
+cluster_data <- function(harmony_obj, alg, res, run_umap = FALSE, cluster_seed,
                          singleton_handling = c("discard", "merge", "keep")) {
   singleton_handling <- match.arg(singleton_handling)
   

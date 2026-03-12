@@ -67,5 +67,5 @@ sweep_dir <- file.path(tmpfiledir, "param_sweep")
 
 # Multiomic, needing to have two different reductions available
 # Defining here only so that they aren't defined in a script
-reduction.save.RNA = "harmony_rna"
+reduction.save.RNA = "harmony_RNA"
 reduction.save.ATAC = "harmony_ATAC"

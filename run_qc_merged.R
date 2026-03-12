@@ -29,7 +29,7 @@ harmony_settings <- list(
   project_dim = FALSE
 )
 
-saveRDS(harmony_settings, harmony_settings_file))
+saveRDS(harmony_settings, harmony_settings_file)
 
 # === STEP 3: Run Harmony for parameter sweep ===
 harmony_obj <- harmonize_both(
@@ -41,6 +41,7 @@ harmony_obj <- harmonize_both(
 )
 
 saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
+#next line is only present due to debugging the code and restarting here
 #harmony_obj <- readRDS(file.path(rdsdir, "harmonized.rds"))
 
 # === STEP 4: Find elbow (informative but not prescriptive) ===
@@ -48,81 +49,55 @@ saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
 maybe_new_device(width = 10, height = 6)
 print(findElbow(harmony_obj))
 
+#BELOW IS VERY INTERESTING, DETERMINE WHAT TOP CELLS IN THE TRANSITIONING GROUPS ARE
 # === STEP 5: Run parameter sweep with metrics ===
-sweep_results <- run_parameter_sweep_with_metrics(
+sweep_results <- run_parameter_sweep_plots(
   seurat_obj = harmony_obj,
-  dims_range = list(c(2:30), c(2:40), c(2:50)),
-  knn_values = c(30, 40, 50),
-  res_values = c(0.03, 0.05, 0.1, 0.2),
+  dims_range = list(c(1:43),c(1:44),c(1:45)),
+  knn_values = c(40),
+  res_values = c(0.16,0.17,0.18),
   alg = 3,                   # SLM algorithm (required parameter)
-  cluster_seed = 1984,       # Reproducibility (required parameter)
-  save_dir = sweep_dir,
-  compute_stability = FALSE  # Skip during initial sweep (too slow)
+  cluster_seed = 1984       # Reproducibility (required parameter)
 )
 
 # Save full sweep results table
-write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results_full.csv"),
+write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results.csv"),
          row.names = FALSE)
 
-# === STEP 6: Filter based on metrics ===
-filtered_results <- sweep_results %>%
-  filter(n_singletons < 10) %>%
-  filter(n_clusters >= 5 & n_clusters <= 20) %>%
-  filter(modularity > 0.3) %>%
-  arrange(desc(modularity)) %>%
-  head(20)
+cat("\n=== PARAMETER SWEEP COMPLETE ===\n")
+cat("Results table saved to:", file.path(tmpfiledir, "param_sweep_results.csv"), "\n")
+cat("\nAll plots displayed on workspace 9. Review them and choose your parameters.\n\n")
 
-cat(sprintf("\nFiltered to %d candidates (from %d total)\n",
-           nrow(filtered_results), nrow(sweep_results)))
+# Print results sorted by cluster count
+cat("Results sorted by cluster count:\n")
+print(sweep_results[order(sweep_results$n_clusters), ])
 
-# === STEP 7: Visual inspection of finalists (in batches) ===
-for (i in seq_len(nrow(filtered_results))) {
-  param <- filtered_results[i, ]
+# === STEP 6: USER INPUT - Set chosen parameters ===
+cat("\n=== SET YOUR CHOSEN PARAMETERS BELOW ===\n")
 
-  # Load saved object (has clustering, no UMAP yet)
-  obj <- load_sweep_result(sweep_dir, param$dims_str, param$knn, param$res)
+# After reviewing plots, set these to your chosen values:
+chosen_dims_min <- 2      # CHANGE THIS
+chosen_dims_max <- 40     # CHANGE THIS
+chosen_knn <- 40          # CHANGE THIS
+chosen_resolution <- 0.05 # CHANGE THIS
 
-  # Run UMAP just for this visualization
-  if (!"wnn.umap" %in% names(obj@reductions)) {
-    obj <- RunUMAP(obj, nn.name = "weighted.nn",
-                   reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
-  }
-
-  maybe_new_device(width = 8, height = 6)
-
-  p <- DimPlot(obj, reduction = "wnn.umap", label = TRUE, label.size = 3) +
-    ggtitle(sprintf("Rank #%d: dims=%s, knn=%d, res=%.2f\nn_clusters=%d, mod=%.3f",
-                   i, param$dims_str, param$knn, param$res,
-                   param$n_clusters, param$modularity))
-
-  print(p)
-  rm(obj, p)
-  gc()
-}
-
-# === STEP 8: Manual selection ===
-chosen_rank <- 3
-chosen_params <- filtered_results[chosen_rank, ]
-
-cat("\n=== Selected Parameters ===\n")
-cat(sprintf("dims: %s\n", chosen_params$dims_str))
-cat(sprintf("knn: %d\n", chosen_params$knn))
-cat(sprintf("resolution: %.3f\n", chosen_params$res))
-cat(sprintf("n_clusters: %d\n", chosen_params$n_clusters))
-cat(sprintf("modularity: %.3f\n", chosen_params$modularity))
-
-# === STEP 9: Save cluster settings ===
+# === STEP 7: Save cluster settings ===
 cluster_settings <- data.frame(
-  dims_min = min(chosen_params$dims[[1]]),
-  dims_max = max(chosen_params$dims[[1]]),
-  knn = chosen_params$knn,
-  resolution = chosen_params$res,
-  algorithm = 3,  # SLM algorithm
-  random_seed = 1984  # For reproducibility
+  dims_min = chosen_dims_min,
+  dims_max = chosen_dims_max,
+  knn = chosen_knn,
+  resolution = chosen_resolution,
+  algorithm = 3,
+  random_seed = 1984
 )
 
 saveRDS(cluster_settings, cluster_settings_file)
 
+fmmn_obj <- FMMN_task(harmony_obj, knn = 40, dims = 1:44)
+clustered_obj <- cluster_data(fmmn_obj, alg = 3, res = 0.16,
+                           cluster_seed = 1984,
+			   singleton_handling = "keep")
+DimPlot(premap_obj,label=T, raster=FALSE)
 
 # ============================================================================
 # PHASE 2: Cell Type Annotation
