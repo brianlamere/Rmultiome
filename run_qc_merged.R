@@ -64,17 +64,11 @@ sweep_results <- run_parameter_sweep_plots(
 write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results.csv"),
          row.names = FALSE)
 
-cat("\n=== PARAMETER SWEEP COMPLETE ===\n")
-cat("Results table saved to:", file.path(tmpfiledir, "param_sweep_results.csv"), "\n")
-cat("\nAll plots displayed on workspace 9. Review them and choose your parameters.\n\n")
-
 # Print results sorted by cluster count
 cat("Results sorted by cluster count:\n")
 print(sweep_results[order(sweep_results$n_clusters), ])
 
 # === STEP 6: USER INPUT - Set chosen parameters ===
-cat("\n=== SET YOUR CHOSEN PARAMETERS BELOW ===\n")
-
 # After reviewing plots, set these to your chosen values:
 chosen_dims_min <- 1      # CHANGE THIS
 chosen_dims_max <- 44     # CHANGE THIS
@@ -93,31 +87,18 @@ cluster_settings <- data.frame(
 
 saveRDS(cluster_settings, cluster_settings_file)
 
-# hack code keeping briefly
-# fmmn_obj <- FMMN_task(harmony_obj, knn = 40, dims = 1:44)
-# clustered_obj <- cluster_data(fmmn_obj, alg = 3, res = 0.16,
-#                            cluster_seed = 1984,
-# 			   singleton_handling = "keep")
-# DimPlot(premap_obj,label=T, raster=FALSE)
-
 # === STEP 8: Create final clustered object from settings ===
 cat("\n=== STEP 8: Applying cluster settings ===\n")
 
 # Read the settings you just saved
 dims <- cluster_settings$dims_min:cluster_settings$dims_max
 
-cat(sprintf("Clustering with: dims=%d:%d, knn=%d, res=%.3f\n",
-           cluster_settings$dims_min, cluster_settings$dims_max,
-           cluster_settings$knn, cluster_settings$resolution))
-
 # Apply FMMN
-cat("Running FindMultiModalNeighbors...\n")
 chosen_obj <- FMMN_task(harmony_obj,
                        knn = cluster_settings$knn,
                        dims = dims)
 
 # Apply clustering
-cat("Clustering...\n")
 chosen_obj <- cluster_data(
   chosen_obj,
   alg = cluster_settings$algorithm,
@@ -142,175 +123,323 @@ print(DimPlot(chosen_obj, reduction = "wnn.umap", label = TRUE, raster = FALSE))
 
 # Save
 saveRDS(chosen_obj, file.path(rdsdir, "chosen_clustered_obj.rds"))
-cat(sprintf("Saved to: %s\n", file.path(rdsdir, "chosen_clustered_obj.rds")))
+#adding as a checkpoint during code development
+# chosen_obj <- readRDS(file.path(rdsdir, "chosen_clustered_obj.rds"))
 
 # ============================================================================
 # PHASE 2: Cell Type Annotation
 # ============================================================================
 
+# Note: refer to lymphocyte_investigation.R for exclusion reason
+
 # === STEP 9: Define and save marker panels ===
-cat("\n=== STEP 9: Setting up marker panels ===\n")
+# markers from https://pubmed.ncbi.nlm.nih.gov/40204703/
+# Zillich, Cell type-specific multiomics analysis of cocaine use disorder
+# in the human caudate nucleus
+cocaine_markers_list <- split(cocaine_paper_markers$gene,
+                             cocaine_paper_markers$celltype)
 
-# Define markers for YOUR tissue (stressed brain nuclei)
-marker_panels <- data.frame(
-  celltype = c(
-    rep("Oligodendrocytes", 6),
-    rep("OPCs", 4),
-    rep("Astrocytes", 6),
-    rep("Microglia", 5),
-    rep("Excitatory_Neurons", 4),
-    rep("Inhibitory_Neurons", 6),
-    rep("Endothelial", 4),
-    rep("Stress_markers", 7)
-  ),
-  gene = c(
-    # Oligodendrocytes (from your manual_mapping2.R)
-    "MBP", "MOBP", "PLP1", "MOG", "MAG", "CNP",
-    # OPCs
-    "VCAN", "PDGFRA", "PCDH15", "OLIG1",
-    # Astrocytes
-    "GFAP", "ALDH1L1", "GLUL", "AQP4", "SLC1A2", "SLC4A4",
-    # Microglia
-    "CSF1R", "APBB1IP", "P2RY12", "AIF1", "CX3CR1",
-    # Excitatory neurons
-    "SLC17A7", "CAMK2A", "SATB2", "TBR1",
-    # Inhibitory neurons (from your manual_mapping2.R)
-    "GAD1", "GAD2", "SLC32A1", "VIP", "SST", "PVALB",
-    # Endothelial
-    "FLT1", "CLDN5", "KDR", "VWF",
-    # Stress markers (important for YOUR study!)
-    "FOS", "JUN", "JUNB", "HSPA1A", "HSPA1B", "ATF3", "DDIT3"
-  ),
-  notes = c(
-    rep("Core oligodendrocyte markers", 6),
-    rep("Oligodendrocyte precursors", 4),
-    rep("Core astrocyte markers", 6),
-    rep("Core microglia markers", 5),
-    rep("Excitatory neuron markers", 4),
-    rep("Inhibitory neuron markers", 6),
-    rep("Endothelial markers", 4),
-    rep("Stress/activation markers - critical for this study", 7)
-  ),
-  stringsAsFactors = FALSE
-)
+# === STEP 10: Finding cluster markers ===
 
-# Save as project data
-write.csv(marker_panels,
-         file.path(project_outdir, "marker_panels.csv"),
-         row.names = FALSE)
-
-cat(sprintf("Marker panels saved to: %s\n",
-           file.path(project_outdir, "marker_panels.csv")))
-cat("\nWARNING: These markers are optimized for stressed brain nuclei.\n")
-cat("For other tissue types, edit marker_panels.csv before running.\n")
-
-# Also save as RDS for easy loading
-saveRDS(marker_panels, file.path(project_outdir, "marker_panels.rds"))
-
-# === STEP 10: Find marker genes for all clusters ===
 DefaultAssay(chosen_obj) <- "RNA"
 
-all_markers <- FindAllMarkers(chosen_obj, 
-                             only.pos = TRUE,
-                             min.pct = 0.25,
-                             logfc.threshold = 0.25)
+# CRITICAL: Join layers before FindAllMarkers (Seurat v5)
+chosen_obj <- JoinLayers(chosen_obj)
 
-# Save all markers for reference
-write.csv(all_markers, 
-          file.path(tmpfiledir, "all_cluster_markers.csv"),
-          row.names = FALSE)
+# Exclude singletons from marker finding
+clusters_to_analyze <- setdiff(levels(Idents(chosen_obj)), "singleton")
 
-cat(sprintf("All markers saved to: %s\n", 
-           file.path(tmpfiledir, "all_cluster_markers.csv")))
-
-# Show top markers per cluster
-cat("\nTop 5 markers per cluster:\n")
-top_markers <- all_markers %>%
-  group_by(cluster) %>%
-  top_n(n = 5, wt = avg_log2FC)
-
-print(top_markers)
-
-# === STEP 11: Visualize marker genes ===
-cat("\nStep 9: Visualizing marker expression...\n")
-
-# Example: Plot known brain cell type markers
-brain_markers <- c(
-  "SLC17A7",  # Excitatory neurons
-  "GAD1",     # Inhibitory neurons
-  "MBP",      # Oligodendrocytes
-  "GFAP",     # Astrocytes
-  "AIF1",     # Microglia
-  "PDGFRA"    # OPCs
+cat("Running FindAllMarkers...\n")
+all_markers <- FindAllMarkers(
+  chosen_obj,
+  idents = clusters_to_analyze,
+  only.pos = TRUE,
+  min.pct = 0.25,
+  logfc.threshold = 0.25,
+  test.use = "wilcox"
 )
 
-maybe_new_device(width = 12, height = 10)
-print(DotPlot(chosen_obj, features = brain_markers) + 
-      coord_flip() +
-      ggtitle("Known Brain Cell Type Markers"))
+# Save all markers
+write.csv(all_markers, 
+         file.path(tmpfiledir, "all_cluster_markers.csv"),
+         row.names = FALSE)
 
-maybe_new_device(width = 14, height = 10)
-print(FeaturePlot(chosen_obj, features = brain_markers, ncol = 3))
+cat(sprintf("Found %d marker genes across %d clusters\n",
+           nrow(all_markers), length(unique(all_markers$cluster))))
+
+# checkpoint if restarting
+# all_markers <- read.csv(file.path(tmpfiledir, "all_cluster_markers.csv"))
+
+# === STEP 11: save top markers per cluster ===
+# useful for cell typing
+
+top_markers <- all_markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) %>%
+  arrange(cluster, desc(avg_log2FC))
+
+write.csv(top_markers,
+         file.path(tmpfiledir, "top10_markers_per_cluster.csv"),
+         row.names = FALSE)
+
+# === STEP 12:  programmatic cell type assessment ===
+
+results <- identify_all_celltypes(
+  all_markers,
+  cocaine_markers_list,
+  min_markers = 2,
+  min_score = 5,
+  verbose = TRUE
+)
+
+# Save results
+write.csv(results$assignments,
+         file.path(tmpfiledir, "celltype_assignments.csv"),
+         row.names = FALSE)
+
+# Show summary
+cat("\n=== Assigned clusters ===\n")
+print(results$assignments %>%
+      filter(!is.na(cluster)) %>%
+      select(cluster, celltype, confidence, n_markers, score))
+
+# Check for unassigned
+all_clusters <- setdiff(levels(Idents(chosen_obj)), "singleton")
+assigned <- results$assignments$cluster[!is.na(results$assignments$cluster)]
+unassigned <- setdiff(all_clusters, assigned)
+
+if (length(unassigned) > 0) {
+  cat(sprintf("\n%d unassigned clusters: %s\n",
+             length(unassigned),
+             paste(unassigned, collapse = ", ")))
 
 # === STEP 12: Manual cell type assignment ===
 
 # USER INPUT: Edit this mapping based on marker genes
 # This is an EXAMPLE - adjust based on your actual markers
 celltype_mapping <- data.frame(
-  cluster = 0:8,  # Adjust based on actual number of clusters
+  cluster = 0:18,
   celltype = c(
-    "Excitatory_Neurons",    # Cluster 0
-    "Inhibitory_Neurons",    # Cluster 1
-    "Oligodendrocytes",      # Cluster 2
-    "Astrocytes",            # Cluster 3
-    "Microglia",             # Cluster 4
-    "OPCs",                  # Cluster 5
-    "Endothelial",           # Cluster 6
-    "Pericytes",             # Cluster 7
-    "Ambiguous"              # Cluster 8 - mark for removal
+    "Oligodendrocytes",           # 0 nature assignment
+    "Excitatory_Neurons",         # 1
+    "Astrocytes",                 # 2 nature assignment
+    "Microglia",                  # 3 nature assignment
+    "GABAergic_SST",              # 4
+    "OPCs",                       # 5 nature assignment
+    "Stressed_Dying_Cells",       # 6 REMOVE
+    "GABAergic_VIP",              # 7
+    "Excitatory_Neurons",         # 8
+    "Excitatory_Neurons",         # 9
+    "Excitatory_Neurons",         # 10
+    "Excitatory_Neurons",         # 11
+    "Pericytes",                  # 12
+    "Endothelial",                # 13 nature assignment
+    "GABAergic_LAMP5",            # 14
+    "Excitatory_Neurons",         # 15
+    "Excitatory_Neurons",         # 16
+    "GABAergic_PVALB",            # 17 nature assignment
+    "Singleton"			  # singletons - remove
   ),
-  action = c(
-    rep("keep", 8),
-    "remove"  # Remove ambiguous cluster
+  markers_used = c(
+    "MBP, MOBP, PLP1",
+    "SLC17A7, CAMK2A, SATB2, TBR1, NRGN",
+    "GFAP, ALDH1L1, GLUL, AQP4, SLC1A2, SLC4A4",
+    "CSF1R, APBB1IP, P2RY12",
+    "GAD1, GAD2, SST, TAC1, ARX",
+    "VCAN, PDGFRA, PCDH15",
+    "VIM, GFAP, NEFM, NEFL, NRGN",
+    "GAD1, GAD2, VIP, CALB2, TAC3",
+    "SLC17A7, CAMK2A, SATB2, TBR1, FOXP2",
+    "SLC17A7, CAMK2A, SATB2, TBR1, FOXP2",
+    "SLC17A7, CAMK2A, SATB2, TBR1, FOXP2",
+    "SLC17A7, CAMK2A, SATB2, BCL11B, FEZF2",
+    "PDGFRB, RGS5, NOTCH3, CARMN",
+    "FLT1, CLDN5",
+    "GAD1, GAD2, LAMP5, KIT",
+    "SLC17A7, CAMK2A, SATB2, TBR1",
+    "SLC17A7, CAMK2A, SATB2, BCL11B, FEZF2, PCP4",
+    "GAD1, GAD2, PVALB, PTHLH",
+    "QC_flag"
+  ),
+  confidence = c(
+    "high", "medium", "high", "high",
+    "high", "high", "low", "high",
+    "medium", "medium", "medium", "medium",
+    "high", "high", "high",
+    "medium", "medium", "high","high"
   ),
   stringsAsFactors = FALSE
 )
 
-#Current cell type mapping:
-print(celltype_mapping)
+#celltype_mapping$celltype[celltype_mapping$cluster == 3] <- "Microglia"
+#
+#celltype_mapping$markers_used[celltype_mapping$cluster == 3] <-
+#  "CSF1R, APBB1IP, P2RY12; elevated inflammatory markers (ITGAX, TLR2, SLC11A1, C3)"
+#
+#celltype_mapping$notes[celltype_mapping$cluster == 3] <-
+#  "CNS-resident microglia showing gradient of activation states. Elevated expression of inflammatory markers (TLR2, ITGAX, SLC11A1, C3) in subset of cells indicates neuroinflammatory response to HIV/opioid exposure. Continuous activation spectrum rather than discrete subtypes."
+#
+#celltype_mapping$confidence[celltype_mapping$cluster == 3] <- "high"
+
+# a reminder of the DimPlot:
+# DimPlot(chosen_obj, reduction = "wnn.umap", group.by = "seurat_clusters", label = TRUE, raster = FALSE)
 
 # === STEP 13: Save cell type mapping ===
 saveRDS(celltype_mapping, celltype_settings_file)
 
-
 # === STEP 14: Preview cell type assignment ===
 
 # Apply cell types to preview
-cluster_ids <- as.numeric(as.character(Idents(chosen_obj)))
-chosen_obj$celltypes <- celltype_mapping$celltype[match(cluster_ids, 
+#cluster_ids <- as.numeric(as.character(Idents(chosen_obj)))
+#chosen_obj$celltypes <- celltype_mapping$celltype[match(cluster_ids, 
+#                                                        celltype_mapping$cluster)]
+# Add celltype to metadata BEFORE filtering
+chosen_obj$celltype <- celltype_mapping$celltype[match(chosen_obj$seurat_clusters,
                                                         celltype_mapping$cluster)]
 
-# Plot with cell type labels
-maybe_new_device(width = 10, height = 8)
-Idents(chosen_obj) <- chosen_obj$celltypes
-print(DimPlot(chosen_obj, reduction = "umap", label = TRUE) +
-      ggtitle("Cell Type Assignments (Preview)"))
+# Report before filtering
+cat("\n=== BEFORE FILTERING ===\n")
+cat(sprintf("Total cells: %d\n", ncol(chosen_obj)))
+table(chosen_obj$celltype) %>% print()
 
-# Show cluster sizes by cell type
-cat("\nCells per cell type:\n")
-print(table(chosen_obj$celltypes))
+# Filter out cluster 6 and singleton
+cells_to_keep <- !chosen_obj$celltype %in% c("Stressed_Dying_Cells", "Singleton")
+
+chosen_obj_filtered <- subset(chosen_obj, cells = colnames(chosen_obj)[cells_to_keep])
+
+# Report after filtering
+cat("\n=== AFTER FILTERING ===\n")
+cat(sprintf("Total cells: %d\n", ncol(chosen_obj_filtered)))
+cat(sprintf("Cells removed: %d (%.1f%%)\n",
+           sum(!cells_to_keep),
+           100 * sum(!cells_to_keep) / ncol(chosen_obj)))
+
+table(chosen_obj_filtered$celltype) %>% print()
+
+# Update the main object name
+chosen_obj <- chosen_obj_filtered
+rm(chosen_obj_filtered)
 
 # ============================================================================
-# Summary
+# VISUALIZATION: CELL TYPE DIMPLOT
 # ============================================================================
 
-cat("\n\n=== QC MERGED COMPLETE ===\n")
-cat("Outputs saved:\n")
-cat(sprintf("  1. Cluster settings: %s\n", 
-           file.path(project_export, "cluster_settings.csv")))
-cat(sprintf("  2. Cell type mapping: %s\n", 
-           file.path(project_export, "celltype_mapping.csv")))
-cat("\nNext step: Run run_pipeline2.R to apply these settings and perform DE/DA\n")
+# Define nice colors for cell types
+celltype_colors <- c(
+  "Oligodendrocytes" = "#E69F00",        # Orange
+  "OPCs" = "#F0E442",                    # Yellow
+  "Astrocytes" = "#56B4E9",              # Light blue
+  "Microglia" = "#CC79A7",               # Pink
+  "Excitatory_Neurons" = "#009E73",      # Green
+  "GABAergic_SST" = "#D55E00",           # Red-orange
+  "GABAergic_VIP" = "#0072B2",           # Dark blue
+  "GABAergic_LAMP5" = "#CC0000",         # Red
+  "GABAergic_PVALB" = "#9900CC",         # Purple
+  "Endothelial" = "#999999",             # Gray
+  "Pericytes" = "#666666"                # Dark gray
+)
 
-cat("\nTop candidates:\n")
-print(filtered_results[, c("dims_str", "knn", "res", "n_clusters", "modularity")])
+# Create the main DimPlot
+p1 <- DimPlot(chosen_obj,
+             reduction = "wnn.umap",
+             group.by = "celltype",
+             cols = celltype_colors,
+             label = TRUE,
+             label.size = 5,
+             repel = TRUE,
+             raster = FALSE) +
+  ggtitle("Cell Type Annotation - Prefrontal Cortex") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14))
+
+# Create a version without labels for cleaner look
+p2 <- DimPlot(chosen_obj,
+             reduction = "wnn.umap",
+             group.by = "celltype",
+             cols = celltype_colors,
+             label = FALSE,
+             raster = FALSE) +
+  ggtitle("Cell Type Annotation - Prefrontal Cortex") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+       legend.text = element_text(size = 10))
+
+# Save both versions
+pdf(file.path(project_outdir, "UMAP_celltype_labeled_font5.pdf"), width = 12, height = 10)
+print(p1)
+dev.off()
+
+pdf(file.path(project_outdir, "UMAP_celltype_clean.pdf"), width = 12, height = 10)
+print(p2)
+dev.off()
+
+# Display in R
+print(p1)
+
+cat("\n✓ DimPlots saved to:\n")
+cat(sprintf("  - %s\n", file.path(project_outdir, "UMAP_celltype_labeled.pdf")))
+cat(sprintf("  - %s\n", file.path(project_outdir, "UMAP_celltype_clean.pdf")))
+
+# ============================================================================
+# CELL TYPE SUMMARY STATISTICS
+# ============================================================================
+
+# Calculate summary by cell type
+celltype_summary <- chosen_obj@meta.data %>%
+  group_by(celltype) %>%
+  summarize(
+    n_cells = n(),
+    percent = 100 * n() / ncol(chosen_obj),
+    median_nFeature = median(nFeature_RNA),
+    median_nCount = median(nCount_RNA),
+    median_pct_mt = median(percent.mt)
+  ) %>%
+  arrange(desc(n_cells))
+
+# Add cell class grouping
+celltype_summary <- celltype_summary %>%
+  mutate(
+    major_class = case_when(
+      grepl("Excitatory", celltype) ~ "Neurons_Excitatory",
+      grepl("GABAergic", celltype) ~ "Neurons_GABAergic",
+      celltype %in% c("Oligodendrocytes", "OPCs") ~ "Oligodendrocyte_Lineage",
+      celltype == "Astrocytes" ~ "Astrocytes",
+      celltype == "Microglia" ~ "Microglia",
+      celltype %in% c("Endothelial", "Pericytes") ~ "Vascular",
+      TRUE ~ "Other"
+    )
+  )
+
+# Display
+cat("\n=== CELL TYPE COMPOSITION ===\n")
+print(celltype_summary, n = 20)
+
+# Summary by major class
+major_class_summary <- celltype_summary %>%
+  group_by(major_class) %>%
+  summarize(
+    n_cells = sum(n_cells),
+    percent = sum(percent),
+    n_subtypes = n()
+  ) %>%
+  arrange(desc(percent))
+
+cat("\n=== MAJOR CELL CLASSES ===\n")
+print(major_class_summary)
+
+# Save
+write.csv(celltype_summary,
+         file.path(project_outdir, "celltype_summary_final.csv"),
+         row.names = FALSE)
+
+write.csv(major_class_summary,
+         file.path(project_outdir, "major_class_summary_final.csv"),
+         row.names = FALSE)
+
+cat("\n✓ Summary statistics saved\n")
+
+# ============================================================================
+# SAVE FILTERED OBJECT
+# ============================================================================
+
+# Save the filtered object with cell type annotations
+saveRDS(chosen_obj, file = file.path(rdsdir, "chosen_obj_filtered_annotated.rds"))
+

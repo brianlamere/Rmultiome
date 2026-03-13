@@ -25,6 +25,8 @@ source(file.path(Rmultiome_path, "functions", "helper_functions.R"))
 source(file.path(Rmultiome_path, "functions", "DE_functions.R"))
 source(file.path(Rmultiome_path, "functions", "qc_functions.R"))
 source(file.path(Rmultiome_path, "functions", "merged_qc_functions.R"))
+source(file.path(Rmultiome_path, "functions", "celltyping_functions.R"))
+source(file.path(Rmultiome_path, "config", "Zillich_Nature_markers.R"))
 
 # multicore for things which might use it
 options(future.globals.maxSize = 48000 * 1024^2) 

@@ -28,6 +28,10 @@ labeled_obj$celltypes[labeled_obj$celltypes=="3"] <- "Microglia"
 ## Macrophages
 # consider adding:  CD163, sCD163, CD14, sCD14 
 
+# Lymphocytes
+# "CD96","CD3D","IL2RG"
+DotPlot(object = labeled_obj, features = c("CD96","CD3D","IL2RG"))
+
 ##########################################
 #focus on above cell types
 #################################

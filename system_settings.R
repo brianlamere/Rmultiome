@@ -4,9 +4,15 @@
 # Working directory that has everything in it.
 project_base_dir <- "/projects1/opioid"
 
-# If TRUE, base_object() will replace the CellRanger RNA counts with CellBender-corrected RNA.
-# This requires that the CellBender output exists for each sample; otherwise the pipeline will stop.
+# If TRUE, base_object() will replace the CellRanger RNA counts with CellBender-corrected
+# RNA.  This requires that the CellBender output exists for each sample; otherwise
+# the pipeline will stop.
 use_cellbender <- TRUE
+
+# if you downloaded a cellmarker csv from here:
+# http://bio-bigdata.hrbmu.edu.cn/CellMarker/CellMarkerSearch.jsp?index_species=Human&index_tissue=Brain
+# define location below
+CellMarker_file <- file.path(project_base_dir, "references/Cellmarker_Human_Brain.csv")
 
 ##################################################################################
 # If following guide precisely, nothing below to end of file would need to change.
@@ -41,6 +47,9 @@ project_outdir <- file.path(project_base_dir, "project_export")
 # Temporary directory (ok to delete; used for scratch outputs during QC, etc.)
 tmpfiledir <- file.path(project_base_dir, "tmp")
 
+# Reference files directory
+referencedir <- file.path(project_base_dir, "references")
+
 # Directory where pipeline1 writes per-sample CellBender merge reports (one CSV per sample)
 cellbender_report_dir <- file.path(project_outdir, "cellbender_merge_reports")
 
@@ -56,11 +65,11 @@ cluster_settings_file <- file.path(project_outdir, "cluster_settings.Rds")
 #Project Celltype Mapping settings file
 celltype_settings_file <- file.path(project_outdir, "celltype_settings.Rds")
 
+#Project Celltype marker panel file.  CONTENTS ARE VERY SPECIFIC TO EACH PROJECT
+marker_panel_file <- file.path(referencedir, "stress_marker_panel_documented.csv")
+
 #Project Harmony Settings file
 harmony_settings_file <- file.path(project_outdir, "harmony_settings.Rds")
-
-# Reference files directory
-referencedir <- file.path(project_base_dir, "references")
 
 #directory to store temporary files used during parameter sweep
 sweep_dir <- file.path(tmpfiledir, "param_sweep")

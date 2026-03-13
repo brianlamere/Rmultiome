@@ -15,8 +15,6 @@
 # 6. Keren-Shaul et al. 2017 - Disease-associated microglia
 # ============================================================================
 
-library(dplyr)
-
 # === NEURONAL DAMAGE/STRESS MARKERS ===
 neuronal_stress <- data.frame(
   gene = c("NEFL", "MAP2", "SYP", "DLG4", "SNAP25", "NRGN", "ENO2"),
@@ -204,9 +202,8 @@ stress_marker_panel <- bind_rows(
 )
 
 # Save
-write.csv(stress_marker_panel,
-         "config/stress_marker_panel_documented.csv",
-         row.names = FALSE)
+mpfdir <- dirname(marker_panel_file)
+if (!dir.exists(mpfdir)) { dir.create(mpfdir) }
+write.csv(stress_marker_panel, marker_panel_file, row.names = FALSE)
 
 cat("Stress marker panel created with", nrow(stress_marker_panel), "markers\n")
-cat("Saved to: config/stress_marker_panel_documented.csv\n")
