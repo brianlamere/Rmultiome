@@ -294,3 +294,63 @@ identify_all_celltypes <- function(all_markers,
     conflicts = conflicts
   ))
 }
+
+#' Apply cell type labels and optionally filter removed cell types
+#'
+#' @param seurat_obj Seurat object with clusters
+#' @param celltype_settings Data frame with cluster, celltype, and action columns
+#' @param remove_flagged If TRUE, removes cells with action == "remove"
+#' @param cluster_col Name of cluster column in metadata (default: "seurat_clusters")
+#' @param verbose Print summary
+#'
+#' @return Seurat object with cell types applied (and optionally filtered)
+#'
+#' @export
+apply_celltype_labels <- function(seurat_obj,
+                                  celltype_settings,
+                                  remove_flagged = TRUE,
+                                  cluster_col = "seurat_clusters",
+                                  verbose = TRUE) {
+
+  # Get cluster assignments
+  cluster_ids <- as.character(seurat_obj@meta.data[[cluster_col]])
+
+  # Match to cell type settings
+  celltype_idx <- match(cluster_ids, as.character(celltype_settings$cluster))
+  seurat_obj$celltype <- celltype_settings$celltype[celltype_idx]
+  seurat_obj$celltype_action <- celltype_settings$action[celltype_idx]
+
+  if (verbose) {
+    cat("\n=== Cell Type Assignment Summary ===\n")
+    celltype_counts <- table(seurat_obj$celltype, seurat_obj$celltype_action)
+    print(celltype_counts)
+  }
+
+  # Filter if requested
+  if (remove_flagged) {
+    cells_before <- ncol(seurat_obj)
+
+    # Identify cells to remove
+    remove_celltypes <- celltype_settings$celltype[celltype_settings$action == "remove"]
+    cells_to_keep <- !seurat_obj$celltype %in% remove_celltypes
+
+    # Subset
+    seurat_obj <- subset(seurat_obj, cells = colnames(seurat_obj)[cells_to_keep])
+
+    cells_after <- ncol(seurat_obj)
+    cells_removed <- cells_before - cells_after
+
+    if (verbose) {
+      cat(sprintf("\nRemoved %d cells (%.1f%%) with flagged cell types:\n",
+                 cells_removed, 100 * cells_removed / cells_before))
+      cat(sprintf("  - %s\n", paste(remove_celltypes, collapse = ", ")))
+      cat(sprintf("Retained %d cells across %d cell types\n",
+                 cells_after, length(unique(seurat_obj$celltype))))
+    }
+  }
+
+  # Set Idents to celltype
+  Idents(seurat_obj) <- seurat_obj$celltype
+
+  return(seurat_obj)
+}

@@ -71,15 +71,15 @@ FMMN_task <- function(FMMN_obj, knn, dims) {
 cluster_data <- function(harmony_obj, alg, res, run_umap = FALSE, cluster_seed,
                          singleton_handling = c("discard", "merge", "keep")) {
   singleton_handling <- match.arg(singleton_handling)
-  
-  #The DefaultAssay is being set for consistent behavior, not because we're doing
-  #assay-specific actions; I don't want a minor unintended change to occur just
-  #because the assay was ATAC or something else, instead of RNA.
+
+  # The DefaultAssay is being set for consistent behavior, not because we're doing
+  # assay-specific actions; I don't want a minor unintended change to occur just
+  # because the assay was ATAC or something else, instead of RNA.
   DefaultAssay(harmony_obj) <- "RNA"
-  
+
   # Determine group.singletons argument for FindClusters
   group_singletons <- (singleton_handling == "merge")
-  
+
   # Clustering step
   harmony_obj <- FindClusters(
     harmony_obj,
@@ -87,34 +87,39 @@ cluster_data <- function(harmony_obj, alg, res, run_umap = FALSE, cluster_seed,
     algorithm = alg,
     resolution = res,
     group.singletons = group_singletons,
-    #I do not like needing the below, and will work on the data until it isn't
+    # I do not like needing the below, and will work on the data until it isn't
     # needed.  Stable data doesn't change with new random seeds.  Hardcoding the
     # seed is cheating.  All but one cluster/cell type are very very stable, so
-    # setting this allows parts of the project to move forward without without it
+    # setting this allows parts of the project to move forward without it
     random.seed = cluster_seed
   )
-  
-  # If discarding singletons, subset them out
+
+  # Run UMAP BEFORE discarding singletons
+  # This ensures weighted.nn neighbor graph is still present
+  if (run_umap) {
+    harmony_obj <- RunUMAP(
+      harmony_obj,
+      nn.name = "weighted.nn",            # This matches weighted.nn.name from FMMN_task
+      reduction.name = "wnn.umap",
+      reduction.key = "wnnUMAP_"
+    )
+  }
+
+  # NOW discard singletons (after UMAP is calculated)
+  # The UMAP coordinates for retained cells will be preserved during subsetting
   if (singleton_handling == "discard") {
     if ("singleton" %in% levels(harmony_obj$seurat_clusters)) {
       singleton_cells <- WhichCells(harmony_obj, idents = "singleton")
       harmony_obj <- subset(harmony_obj, cells = setdiff(colnames(harmony_obj), singleton_cells))
       # Drop unused cluster level
       harmony_obj$seurat_clusters <- droplevels(harmony_obj$seurat_clusters)
+
+      cat(sprintf("Discarded %d singleton cells\n", length(singleton_cells)))
     }
   }
-  
-  if (run_umap) {
-    harmony_obj <- RunUMAP(
-      harmony_obj,
-      nn.name = "weighted.nn",            # This matches weighted.nn.name above
-      reduction.name = "wnn.umap",
-      reduction.key = "wnnUMAP_"
-    )
-  }
+
   return(harmony_obj)
 }
-
 
 target_markers <- function(harmony_obj, numMarks = 5) {
   DefaultAssay(harmony_obj) <- "RNA"

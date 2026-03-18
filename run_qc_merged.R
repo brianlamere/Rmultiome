@@ -240,6 +240,12 @@ celltype_mapping <- data.frame(
     "GABAergic_PVALB",            # 17 nature assignment
     "Singleton"			  # singletons - remove
   ),
+    action = c(
+    rep("keep", 6),
+    "remove",                     # cluster 6
+    rep("keep", 11),
+    "remove"                      # singleton
+  ),
   markers_used = c(
     "MBP, MOBP, PLP1",
     "SLC17A7, CAMK2A, SATB2, TBR1, NRGN",
@@ -293,32 +299,23 @@ saveRDS(celltype_mapping, celltype_settings_file)
 #cluster_ids <- as.numeric(as.character(Idents(chosen_obj)))
 #chosen_obj$celltypes <- celltype_mapping$celltype[match(cluster_ids, 
 #                                                        celltype_mapping$cluster)]
-# Add celltype to metadata BEFORE filtering
-chosen_obj$celltype <- celltype_mapping$celltype[match(chosen_obj$seurat_clusters,
-                                                        celltype_mapping$cluster)]
 
-# Report before filtering
-cat("\n=== BEFORE FILTERING ===\n")
-cat(sprintf("Total cells: %d\n", ncol(chosen_obj)))
-table(chosen_obj$celltype) %>% print()
+# After creating celltype_mapping, test it:
+chosen_obj <- apply_celltype_labels(
+  chosen_obj,
+  celltype_settings = celltype_mapping,
+  remove_flagged = TRUE,     # Remove cluster 6 and singleton
+  verbose = TRUE
+)
 
-# Filter out cluster 6 and singleton
-cells_to_keep <- !chosen_obj$celltype %in% c("Stressed_Dying_Cells", "Singleton")
-
-chosen_obj_filtered <- subset(chosen_obj, cells = colnames(chosen_obj)[cells_to_keep])
-
-# Report after filtering
-cat("\n=== AFTER FILTERING ===\n")
-cat(sprintf("Total cells: %d\n", ncol(chosen_obj_filtered)))
-cat(sprintf("Cells removed: %d (%.1f%%)\n",
-           sum(!cells_to_keep),
-           100 * sum(!cells_to_keep) / ncol(chosen_obj)))
-
-table(chosen_obj_filtered$celltype) %>% print()
+# Visualize
+DimPlot(chosen_obj, group.by = "celltype", label = TRUE, raster = FALSE)
 
 # Update the main object name
-chosen_obj <- chosen_obj_filtered
-rm(chosen_obj_filtered)
+# NO.  This creates a non-idempotent process.
+#chosen_obj <- chosen_obj_filtered
+#rm(chosen_obj_filtered)
+saveRDS(chosen_obj_filtered, file.path(rdsdir, "final_qc_obj.rds"))
 
 # ============================================================================
 # VISUALIZATION: CELL TYPE DIMPLOT
@@ -340,7 +337,7 @@ celltype_colors <- c(
 )
 
 # Create the main DimPlot
-p1 <- DimPlot(chosen_obj,
+p1 <- DimPlot(chosen_obj_filtered,
              reduction = "wnn.umap",
              group.by = "celltype",
              cols = celltype_colors,
@@ -352,7 +349,7 @@ p1 <- DimPlot(chosen_obj,
   theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14))
 
 # Create a version without labels for cleaner look
-p2 <- DimPlot(chosen_obj,
+p2 <- DimPlot(chosen_obj_filtered,
              reduction = "wnn.umap",
              group.by = "celltype",
              cols = celltype_colors,
@@ -383,7 +380,7 @@ cat(sprintf("  - %s\n", file.path(project_outdir, "UMAP_celltype_clean.pdf")))
 # ============================================================================
 
 # Calculate summary by cell type
-celltype_summary <- chosen_obj@meta.data %>%
+celltype_summary <- chosen_obj_filtered@meta.data %>%
   group_by(celltype) %>%
   summarize(
     n_cells = n(),
@@ -441,5 +438,5 @@ cat("\n✓ Summary statistics saved\n")
 # ============================================================================
 
 # Save the filtered object with cell type annotations
-saveRDS(chosen_obj, file = file.path(rdsdir, "chosen_obj_filtered_annotated.rds"))
+# saveRDS(chosen_obj, file = file.path(rdsdir, "chosen_obj_filtered_annotated.rds"))
 

@@ -22,17 +22,98 @@ harmony_obj <- harmonize_both(
 dims <- cluster_settings$dims_min:cluster_settings$dims_max
 
 clustered_obj <- FMMN_task(harmony_obj,
-                          dims_pca = dims,
-                          dims_harmony = dims,
+                          dims = dims,
                           knn = cluster_settings$knn)
 
 clustered_obj <- cluster_data(clustered_obj,
                              alg = cluster_settings$algorithm,
                              res = cluster_settings$resolution,
-                             cluster_seed = cluster_settings$random_seed)
+                             cluster_seed = cluster_settings$random_seed,
+			     singleton_handling = "discard",
+			     run_umap = TRUE)
 
-clustered_obj <- RunUMAP(clustered_obj, reduction = "harmony", dims = dims)
+# === STEP 3: Apply cell type labels ===
+# Apply labels and remove flagged cell types in one call
+clustered_obj <- apply_celltype_labels(
+  clustered_obj,
+  celltype_settings = celltype_settings,
+  remove_flagged = TRUE,     # Remove clusters marked as "remove"
+  verbose = TRUE
+)
 
+# That's it! Labels applied, bad cells removed, ready for analysis
+obj_assigned <- clustered_obj
+
+# === Visualization ===
+DimPlot(clustered_obj, group.by = "celltypes", label = TRUE, raster = FALSE)
+
+# Filter out unassigned clusters (cells with empty celltype, if any remain)
+assigned_cells <- WhichCells(clustered_obj, expression = celltypes != "")
+obj_assigned <- subset(clustered_obj, cells = assigned_cells)
+
+# Verify
+DimPlot(obj_assigned, label = TRUE, raster = FALSE)
+DimPlot(obj_assigned, group.by = "celltypes", label = TRUE, raster = FALSE)
+
+# === STEP 4: Add experimental group metadata ===
+obj_assigned$group <- NA
+obj_assigned$group[obj_assigned$orig.ident %in% c("LG300", "LG301")] <- "No_HIV"
+obj_assigned$group[obj_assigned$orig.ident %in% c("LG22", "LG25", "LG38")] <- "Low"
+obj_assigned$group[obj_assigned$orig.ident %in% c("LG05", "LG26", "LG31")] <- "Acute"
+obj_assigned$group[obj_assigned$orig.ident %in% c("LG08", "LG23", "LG33")] <- "Chronic"
+
+# Save the final annotated object
+saveRDS(obj_assigned, file.path(rdsdir, "annotated_obj_final.rds"))
+
+# === STEP 5: DE/DA Analysis ===
+
+# CRITICAL: Join layers before differential expression testing
+cat("\nJoining layers for DE/DA testing...\n")
+obj_assigned <- JoinLayers(obj_assigned)
+
+# Define cell types and comparisons for DE/DA
+celltypes_list <- c("Oligodendrocytes", "Microglia", "Astrocytes")  # UPDATE to match your actual cell type names!
+comparisons_list <- list(
+  c("No_HIV", "Low"),
+  c("Low", "Acute"),
+  c("Low", "Chronic")
+)
+
+# Run Differential Expression
+cat("\n=== Running Differential Expression ===\n")
+for (celltype in celltypes_list) {
+  for (comparison in comparisons_list) {
+    cat(sprintf("DE: %s - %s vs %s\n", celltype, comparison[1], comparison[2]))
+    run_DiffExpress_and_export(
+      seurat_obj = obj_assigned,        # Use obj_assigned consistently
+      celltype_col = "celltypes",
+      celltype = celltype,
+      group_col = "group",
+      ident.1 = comparison[1],
+      ident.2 = comparison[2],
+      output_prefix = file.path(project_outdir, "DiffExpress_results")
+    )
+  }
+}
+
+# Run Differential Accessibility
+cat("\n=== Running Differential Accessibility ===\n")
+for (celltype in celltypes_list) {
+  for (comparison in comparisons_list) {
+    cat(sprintf("DA: %s - %s vs %s\n", celltype, comparison[1], comparison[2]))
+    run_DiffAccess_and_export(
+      seurat_obj = obj_assigned,        # Use obj_assigned consistently
+      celltype_col = "celltypes",
+      celltype = celltype,
+      group_col = "group",
+      ident.1 = comparison[1],
+      ident.2 = comparison[2],
+      output_prefix = file.path(project_outdir, "DiffAccess_results")
+    )
+  }
+}
+
+#================old code
 # === STEP 3: Apply cell type labels ===
 cluster_ids <- as.numeric(as.character(Idents(clustered_obj)))
 clustered_obj$celltypes <- celltype_mapping$celltype[
