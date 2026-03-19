@@ -23,7 +23,8 @@ post_merge_atac <- function(pm_atac_obj) {
 
 harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
                          harmony_project.dim = FALSE,
-                         harmony_dims = NULL, random_seed = NULL) { 
+                         harmony_dims = NULL, random_seed = NULL,
+			 plot_convergence = FALSE) { 
   DefaultAssay(harmony_obj) <- "RNA"
   if (!is.null(random_seed)) {
     set.seed(random_seed)
@@ -32,7 +33,7 @@ harmonize_both <- function(harmony_obj, harmony_max_iter = 50,
     harmony_obj,
     group.by.vars = "orig.ident",
     reduction.use = "pca",
-    plot_convergence = TRUE,
+    plot_convergence = plot_convergence,
     max_iter = harmony_max_iter,
     reduction.save = reduction.save.RNA,
     project.dim = harmony_project.dim,
