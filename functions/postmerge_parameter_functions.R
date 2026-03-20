@@ -97,3 +97,26 @@ parameter_sweep <- function(merged_obj, param_grid, resolutions, output_dir, plo
   }
   invisible(results)
 }
+
+# Helper function to extract markers
+extract_celltype_markers <- function(celltype_settings, celltypes_of_interest) {
+  markers_list <- list()
+
+  for (celltype in celltypes_of_interest) {
+    # Find the row for this celltype
+    row <- celltype_settings[celltype_settings$celltype == celltype, ]
+
+    if (nrow(row) == 0) {
+      warning(sprintf("Cell type '%s' not found in celltype_settings", celltype))
+      next
+    }
+
+    # Parse comma-separated markers
+    markers_str <- row$markers_used[1]
+    markers <- trimws(strsplit(markers_str, ",")[[1]])
+
+    markers_list[[celltype]] <- markers
+  }
+
+  return(markers_list)
+}

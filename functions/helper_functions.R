@@ -95,15 +95,167 @@ summarize_results <- function(results) {
   do.call(rbind, metrics)
 }
 
-init_project <- function(){
-  if (!dir.exists(project_outdir)) dir.create(project_outdir, recursive = TRUE)
-  if (!dir.exists(rdsdir)) dir.create(rdsdir, recursive = TRUE)
+#' Initialize project structure and settings
+#'
+#' Creates directories and project_settings.R, then loads settings into global env
+#' Call once at start of run_qc.R (stepping through interactively)
+#'
+#' @param random_seed Global random seed (default 42)
+#' @param use_cellbender Use CellBender RNA (default TRUE)
+#' @param use_scdblfinder Detect/remove doublets with scDblFinder (default TRUE)
+#' @param doublet_rate_per_1000 Expected doublets per 1000 cells (default 8.0, 10X formula)
+#' @param doublet_rate_sd Uncertainty in doublet rate (default 0.015; use 1.0 if very uncertain)
+#' @param project_name Project name (default "multiome_project")
+#' @param genome_build Genome build (default "hg38")
+#' @return Invisible list of project settings (also loaded into .GlobalEnv)
+init_project <- function(random_seed = 42,
+                        use_cellbender = TRUE,
+                        use_scdblfinder = TRUE,
+                        doublet_rate_per_1000 = 8.0,
+                        doublet_rate_sd = 0.015,
+                        project_name = "multiome_project",
+                        genome_build = "hg38") {
 
-  # Scratch space for interactive QC + temporary outputs
-  if (!dir.exists(tmpfiledir)) dir.create(tmpfiledir, recursive = TRUE)
+  cat("\n=== Initializing Project ===\n")
 
-  # Output directory for per-sample CellBender merge reports (written by pipeline1)
-  if (!dir.exists(cellbender_report_dir)) dir.create(cellbender_report_dir, recursive = TRUE)
+  # Require system_settings
+  if (!exists("project_export")) {
+    stop("Source system_settings.R first!")
+  }
+
+  # Create directories
+  dirs <- c(project_export, rdsdir, tmpfiledir)
+  for (d in dirs) {
+    if (!dir.exists(d)) {
+      dir.create(d, recursive = TRUE)
+      cat(sprintf("  Created: %s\n", d))
+    }
+  }
+
+  # Create project_settings.R
+  settings_path <- file.path(project_export, "project_settings.R")
+
+  if (file.exists(settings_path)) {
+    cat(sprintf("\nproject_settings.R exists, loading...\n"))
+  } else {
+    # Generate settings file
+    settings_content <- sprintf(
+'# ====================================================================
+# PROJECT SETTINGS
+# Created: %s
+# Manually edit this file to change project-wide parameters
+# After editing, re-source: source(file.path(project_export, "project_settings.R"))
+# ====================================================================
+
+# === Reproducibility ===
+random_seed <- %d  # Global seed for all stochastic processes
+
+# === Feature toggles ===
+use_cellbender <- %s    # Use CellBender-corrected RNA counts
+use_scdblfinder <- %s   # Detect and remove doublets with scDblFinder
+
+# === Analysis scope ===
+standard_chroms <- paste0("chr", c(1:22, "X", "Y"))  # Chromosomes to include
+
+# === Doublet detection parameters ===
+# Based on 10X Chromium documentation: ~1%% doublet rate per 1000 cells captured
+doublet_rate_per_1000 <- %.1f  # Expected doublets per 1000 cells
+doublet_rate_sd <- %.3f        # Uncertainty (0.015 = confident, 1.0 = use misclassification only)
+
+# === Project metadata ===
+project_name <- "%s"
+genome_build <- "%s"
+species <- "Homo sapiens"
+tissue <- "brain"  # Edit as appropriate
+analysis_version <- "1.0.0"
+analysis_date <- "%s"
+
+# ====================================================================
+# END PROJECT SETTINGS
+# ====================================================================
+',
+      Sys.Date(),
+      random_seed,
+      use_cellbender,
+      use_scdblfinder,
+      doublet_rate_per_1000,
+      doublet_rate_sd,
+      project_name,
+      genome_build,
+      Sys.Date()
+    )
+
+    writeLines(settings_content, settings_path)
+    cat(sprintf("  Created: %s\n", settings_path))
+  }
+
+  # Load into global environment (like run_pipeline1.R does)
+  source(settings_path, local = .GlobalEnv)
+
+  cat("\nProject settings loaded:\n")
+  cat(sprintf("  random_seed = %d\n", random_seed))
+  cat(sprintf("  use_cellbender = %s\n", use_cellbender))
+  cat(sprintf("  use_scdblfinder = %s\n", use_scdblfinder))
+  cat(sprintf("  doublet_rate_per_1000 = %.1f\n", doublet_rate_per_1000))
+  cat(sprintf("  project_name = %s\n", project_name))
+
+  cat("\n=== Ready for QC ===\n\n")
+
+  # Return settings invisibly
+  invisible(list(
+    random_seed = random_seed,
+    use_cellbender = use_cellbender,
+    use_scdblfinder = use_scdblfinder,
+    doublet_rate_per_1000 = doublet_rate_per_1000,
+    doublet_rate_sd = doublet_rate_sd,
+    project_name = project_name,
+    genome_build = genome_build,
+    standard_chroms = standard_chroms
+  ))
+}
+
+#' Initialize pipeline1 settings scaffolding
+#'
+#' Creates dataframe merging trimming + KDE + doublet parameters
+#' User fills in values during run_qc.R
+#'
+#' @param samples Vector of sample IDs
+#' @return Dataframe with scaffolding for all pipeline1 settings
+init_pipeline1_settings <- function(samples) {
+
+  n_samples <- length(samples)
+
+  # Create combined dataframe
+  settings <- data.frame(
+    sample = samples,
+
+    # === 1D Trimming parameters ===
+    nCount_RNA_min = rep(NA, n_samples),
+    nCount_RNA_max = rep(NA, n_samples),
+    nFeature_RNA_min = rep(NA, n_samples),
+    nFeature_RNA_max = rep(NA, n_samples),
+    percent_mt_max = rep(NA, n_samples),
+    nCount_ATAC_min = rep(NA, n_samples),
+    nCount_ATAC_max = rep(NA, n_samples),
+    nFeature_ATAC_min = rep(NA, n_samples),
+    nFeature_ATAC_max = rep(NA, n_samples),
+    TSS_enrichment_min = rep(NA, n_samples),
+    nucleosome_signal_max = rep(NA, n_samples),
+
+    # === KDE parameters ===
+    atac_percentile = rep(NA, n_samples),
+    rna_percentile = rep(NA, n_samples),
+    combine_method = rep(NA, n_samples),  # "intersect" or "union"
+    kde_bandwidth = rep(NA, n_samples),
+
+    # === Doublet detection ===
+    n_cells_after_kde = rep(NA, n_samples),    # Cells passing QC (for calculating dbr)
+    expected_dbr = rep(NA, n_samples),          # Expected doublet rate (calculated or manual)
+
+    stringsAsFactors = FALSE
+  )
+
+  return(settings)
 }
 
 init_trimming_settings <- function(trimming_settings_file){

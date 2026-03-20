@@ -9,6 +9,9 @@ project_base_dir <- "/projects1/opioid"
 # the pipeline will stop.
 use_cellbender <- TRUE
 
+#If TRUE, will run scDblFinder
+use_scdblfinder <- TRUE
+
 # if you downloaded a cellmarker csv from here:
 # http://bio-bigdata.hrbmu.edu.cn/CellMarker/CellMarkerSearch.jsp?index_species=Human&index_tissue=Brain
 # define location below

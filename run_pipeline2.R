@@ -67,29 +67,12 @@ DefaultAssay(obj_assigned) <- "RNA"
 obj_assigned <- JoinLayers(obj_assigned)
 
 # Define cell types and comparisons for DE/DA
-celltypes_list <- c("Oligodendrocytes", "Microglia", "Astrocytes")  # UPDATE to match your actual cell type names!
+celltypes_list <- c("Oligodendrocytes", "Microglia", "Astrocytes")
 comparisons_list <- list(
-  c("No_HIV", "Low"),
-  c("Low", "Acute"),
-  c("Low", "Chronic")
+  c("Low", "No_HIV"),
+  c("Acute", "Low"),
+  c("Chronic", "Low")
 )
-
-# Run Differential Expression
-cat("\n=== Running Differential Expression ===\n")
-for (celltype in celltypes_list) {
-  for (comparison in comparisons_list) {
-    cat(sprintf("DE: %s - %s vs %s\n", celltype, comparison[1], comparison[2]))
-    run_DiffExpress_and_export(
-      seurat_obj = obj_assigned,        # Use obj_assigned consistently
-      celltype_col = "celltype",
-      celltype = celltype,
-      group_col = "group",
-      ident.1 = comparison[1],
-      ident.2 = comparison[2],
-      output_prefix = file.path(project_outdir, "DiffExpress_results")
-    )
-  }
-}
 
 # Run Differential Expression (PSEUDO-BULK)
 for (celltype in celltypes_list) {
@@ -98,12 +81,12 @@ for (celltype in celltypes_list) {
     run_pseudobulk_DE_and_export(
       seurat_obj = obj_assigned,
       celltype_col = "celltype",
-      celltype = celltype,
+      celltype_value = celltype,
       sample_col = "orig.ident",
       group_col = "group",
       ident.1 = comparison[1],
       ident.2 = comparison[2],
-      output_prefix = file.path(project_outdir, "DiffExpress_PB_results"),
+      output_prefix = file.path(project_outdir, "DiffExpress_results"),
       min_cells_per_sample = 50
     )
   }
@@ -118,7 +101,7 @@ for (celltype in celltypes_list) {
     run_pseudobulk_DA_and_export(
       seurat_obj = obj_assigned,
       celltype_col = "celltype",
-      celltype = celltype,
+      celltype_value = celltype,
       sample_col = "orig.ident",
       group_col = "group",
       ident.1 = comparison[1],

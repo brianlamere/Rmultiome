@@ -319,6 +319,78 @@ base_qc_object <- function(sample, EnsDbAnnos, save = FALSE, cb_report = "displa
   return(base_obj)
 }
 
+#' Run AMULET doublet detection on ATAC fragment file
+#'
+#' @param sample Sample name
+#' @param amulet_path Path to AMULET.py script
+#' @param fragments_file Path to fragments.tsv.gz (optional, inferred from settings)
+#' @return Data frame with barcode and doublet status
+run_amulet_detection <- function(sample,
+                                 amulet_path = amulet_path,
+                                 fragments_file = NULL) {
+
+  # Infer fragment file path if not provided
+  if (is.null(fragments_file)) {
+    fragments_file <- file.path(rawdatadir, sample, atacfilename)
+  }
+
+  if (!file.exists(fragments_file)) {
+    stop(sprintf("Fragment file not found: %s", fragments_file))
+  }
+
+  # Output directory
+  amulet_outdir <- file.path(tmpfiledir, "amulet_results", sample)
+  dir.create(amulet_outdir, recursive = TRUE, showWarnings = FALSE)
+
+  cat(sprintf("Running AMULET for sample: %s\n", sample))
+  cat(sprintf("  Fragment file: %s\n", fragments_file))
+  cat(sprintf("  Output dir: %s\n", amulet_outdir))
+
+  # Run AMULET (external Python script)
+  amulet_cmd <- sprintf(
+    "python %s --forcesingle --bcidx 1 --cellidx 2 --iscellidx 3 --maxinsert 1000 %s %s",
+    amulet_path, fragments_file, amulet_outdir
+  )
+
+  system(amulet_cmd)
+
+  # Check for output file
+  multiplet_file <- file.path(amulet_outdir, "MultipletBarcodes_01.txt")
+
+  if (!file.exists(multiplet_file)) {
+    warning(sprintf("AMULET did not produce output file: %s", multiplet_file))
+    return(data.frame(barcode = character(0), amulet_doublet = logical(0)))
+  }
+
+  # Read results
+  doublet_barcodes <- read.table(multiplet_file, header = FALSE,
+                                 col.names = "barcode", stringsAsFactors = FALSE)
+
+  doublet_barcodes$amulet_doublet <- TRUE
+
+  cat(sprintf("  AMULET detected %d doublets\n", nrow(doublet_barcodes)))
+
+  return(doublet_barcodes)
+}
+
+#' Apply AMULET results to Seurat object
+#'
+#' @param seurat_obj Seurat object
+#' @param amulet_results Data frame from run_amulet_detection()
+#' @return Seurat object with amulet_doublet column added
+apply_amulet_results <- function(seurat_obj, amulet_results) {
+
+  # Add AMULET doublet flag to metadata
+  seurat_obj$amulet_doublet <- colnames(seurat_obj) %in% amulet_results$barcode
+
+  n_doublets <- sum(seurat_obj$amulet_doublet)
+
+  cat(sprintf("  Marked %d cells as AMULET doublets (%.2f%%)\n",
+             n_doublets, 100 * n_doublets / ncol(seurat_obj)))
+
+  return(seurat_obj)
+}
+
 #' Annotate RNA features by EnsDb annotation and ATAC peaks by parsing peak names (hyphen format).
 #'
 #' @param seurat_obj Seurat object.

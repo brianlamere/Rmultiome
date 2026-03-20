@@ -2,10 +2,21 @@ source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #Step 1-1: set up your space and list the options for sample names
-init_project()
+init_project(
+  random_seed = 42,
+  use_cellbender = TRUE,
+  use_scdblfinder = TRUE,
+  doublet_rate_per_1000 = 8.0,
+  doublet_rate_sd = 0.015,
+  project_name = "opioid_hiv_multiome",
+  genome_build = "hg38"
+)
 
-trimming_settings <- init_trimming_settings(trimming_settings_file)
-kde_settings <- init_kde_settings(kde_settings_file)
+#trimming_settings <- init_trimming_settings(trimming_settings_file)
+#kde_settings <- init_kde_settings(kde_settings_file)
+
+# Initialize pipeline1 settings
+pipeline1_settings <- init_pipeline1_settings(samplelist)
 
 EnsDbAnnos <- loadannotations()
 
@@ -93,7 +104,35 @@ plot_kde_filter_combine_compare_rna(trimmed_obj, kde_settings)
 # method you want to use.
 
 #step 2-6: save the KDE trimming setting
-saveRDS(kde_settings, kde_settings_file)
+saveRDS(kde_settings, kde_settings_file)o
+
+#Step 3: cellbender ((WORK IN PROGRESS))
+
+# === Test scDblFinder (when implemented) ===
+if (use_scdblfinder) {
+  cat("\n=== Testing scDblFinder ===\n")
+
+  for (i in 1:nrow(pipeline1_settings)) {
+    sample <- pipeline1_settings$sample[i]
+    kde_obj <- readRDS(get_rds_path(sample, "kdetrim"))
+
+    # Convert to SCE
+    sce <- as.SingleCellExperiment(kde_obj, assay = "RNA")
+
+    # Run scDblFinder
+    sce <- scDblFinder(sce,
+                      clusters = FALSE,  # Random mode
+                      dbr = pipeline1_settings$expected_dbr[i] / ncol(sce),  # Convert to rate
+                      dbr.sd = doublet_rate_sd)
+
+    # Report
+    n_doublets <- sum(sce$scDblFinder.class == "doublet")
+    cat(sprintf("%s: %d/%d doublets detected (%.1f%%)\n",
+               sample, n_doublets, ncol(sce), 100*n_doublets/ncol(sce)))
+  }
+
+  cat("\nIf results look reasonable, proceed with pipeline1\n")
+}
 
 #step 3-1: start almost everything over
 #protect yourself from stepping on yourself
