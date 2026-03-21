@@ -1,7 +1,7 @@
 source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
-trimming_settings <- read_trimming_settings(trimming_settings_file)
+pipeline1_settings <- read_pipeline1_settings(pipeline1_settings_file)
 cluster_settings <- read_cluster_settings(cluster_settings_file)
 celltype_settings <- read_celltype_settings(celltype_settings_file)
 harmony_settings <- read_harmony_settings(harmony_settings_file)

@@ -178,7 +178,7 @@ analysis_date <- "%s"
       random_seed,
       use_cellbender,
       use_scdblfinder,
-      doublet_rate_per_1000,
+      doublet_rate_pct,
       doublet_rate_sd,
       project_name,
       genome_build,
@@ -214,56 +214,15 @@ analysis_date <- "%s"
   ))
 }
 
-#' Initialize pipeline1 settings scaffolding
-#'
-#' Creates dataframe merging trimming + KDE + doublet parameters
-#' User fills in values during run_qc.R
-#'
-#' @param samples Vector of sample IDs
-#' @return Dataframe with scaffolding for all pipeline1 settings
-init_pipeline1_settings <- function(samples) {
-
-  n_samples <- length(samples)
-
-  # Create combined dataframe
-  settings <- data.frame(
-    sample = samples,
-
-    # === 1D Trimming parameters ===
-    nCount_RNA_min = rep(NA, n_samples),
-    nCount_RNA_max = rep(NA, n_samples),
-    nFeature_RNA_min = rep(NA, n_samples),
-    nFeature_RNA_max = rep(NA, n_samples),
-    percent_mt_max = rep(NA, n_samples),
-    nCount_ATAC_min = rep(NA, n_samples),
-    nCount_ATAC_max = rep(NA, n_samples),
-    nFeature_ATAC_min = rep(NA, n_samples),
-    nFeature_ATAC_max = rep(NA, n_samples),
-    TSS_enrichment_min = rep(NA, n_samples),
-    nucleosome_signal_max = rep(NA, n_samples),
-
-    # === KDE parameters ===
-    atac_percentile = rep(NA, n_samples),
-    rna_percentile = rep(NA, n_samples),
-    combine_method = rep(NA, n_samples),  # "intersect" or "union"
-    kde_bandwidth = rep(NA, n_samples),
-
-    # === Doublet detection ===
-    n_cells_after_kde = rep(NA, n_samples),    # Cells passing QC (for calculating dbr)
-    expected_dbr = rep(NA, n_samples),          # Expected doublet rate (calculated or manual)
-
-    stringsAsFactors = FALSE
-  )
-
-  return(settings)
-}
-
-init_trimming_settings <- function(trimming_settings_file){
-  if (file.exists(trimming_settings_file)) {
-    trimming_settings_init <- readRDS(trimming_settings_file)
+init_pipeline1_settings <- function(pipeline1_settings_file) {
+  if (file.exists(pipeline1_settings_file)) {
+    pipeline1_settings_init <- readRDS(pipeline1_settings_file)
   } else {
-    trimming_settings_init <- data.frame(
+    # Use OLD column names to match existing code
+    pipeline1_settings_init <- data.frame(
       sample = character(0),
+
+      # === 1D Trimming parameters (OLD naming) ===
       min_nCount_ATAC = numeric(0),
       max_nCount_ATAC = numeric(0),
       min_nCount_RNA = numeric(0),
@@ -273,40 +232,113 @@ init_trimming_settings <- function(trimming_settings_file){
       max_percentMT = numeric(0),
       min_TSS = numeric(0),
       max_TSS = numeric(0),
+
+      # === KDE parameters ===
+      atac_percentile = numeric(0),
+      rna_percentile = numeric(0),
+      combine_method = character(0),
+      kde_bandwidth = numeric(0),   # Future use
+
+      # === Doublet detection ===
+      n_cells_after_kde = numeric(0),
+      expected_dbr = numeric(0),
+
       stringsAsFactors = FALSE
     )
   }
-  return(trimming_settings_init)
+
+  return(pipeline1_settings_init)
 }
 
-init_kde_settings <- function(kde_settings_file){
-  if (file.exists(kde_settings_file)) {
-    kde_settings_init <- readRDS(kde_settings_file)
+#' Verify pipeline1 settings before updating
+#'
+#' Shows current settings vs proposed changes for a sample
+#' Only compares columns present in my_settings (flexible for trim or KDE)
+#'
+#' @param pipeline1_settings The main settings dataframe
+#' @param my_settings List of proposed settings (trim or KDE fields)
+#' @param quiet If TRUE, only show changes (no full printout)
+verify_pipeline1_settings <- function(pipeline1_settings, my_settings, quiet = FALSE) {
+
+  sample_name <- my_settings$sample
+  existing_row <- pipeline1_settings[pipeline1_settings$sample == sample_name, ]
+
+  if (nrow(existing_row) == 0) {
+    cat(sprintf("Sample '%s' is new. No previous settings to compare to.\n", sample_name))
   } else {
-    kde_settings_init <- data.frame(
-      sample = character(0),
-      atac_percentile = numeric(0),
-      rna_percentile = numeric(0),
-      combine_method = character(0)
-    )
+
+    # Only look at columns present in my_settings (ignoring "sample")
+    fields_to_compare <- setdiff(names(my_settings), "sample")
+
+    # Filter to only columns that exist in pipeline1_settings
+    fields_to_compare <- intersect(fields_to_compare, colnames(pipeline1_settings))
+
+    if (quiet == FALSE) {
+      cat(sprintf("Current settings for sample '%s':\n", sample_name))
+      print(existing_row[, c("sample", fields_to_compare), drop = FALSE])
+      cat("Proposed new settings:\n")
+      print(as.data.frame(my_settings, stringsAsFactors = FALSE)[, c("sample", fields_to_compare), drop = FALSE])
+    }
+
+    # Show changes (only for fields being updated)
+    changed <- sapply(fields_to_compare, function(field) {
+      old <- existing_row[[field]]
+      new <- my_settings[[field]]
+      !identical(old, new)
+    })
+
+    if (any(changed)) {
+      cat("Fields that will change:\n")
+      print(fields_to_compare[changed])
+    } else {
+      cat("No changes detected for this sample.\n")
+    }
   }
-  return(kde_settings_init)
 }
 
-read_trimming_settings <- function(trimming_settings_file){
-  if (!file.exists(trimming_settings_file)) {
-    stop(sprintf("Trimming settings file not found: %s", trimming_settings_file))
-  }
-  trimming_settings_read <- readRDS(trimming_settings_file)
-  return(trimming_settings_read)
-}
+#' Update pipeline1 settings for a sample
+#'
+#' Updates only the fields provided in my_settings, leaves others untouched
+#' Works with any subset of settings (trim, KDE, or mix)
+#'
+#' @param pipeline1_settings The main settings dataframe
+#' @param my_settings List of settings for one sample (any fields)
+#' @return Updated pipeline1_settings dataframe
+update_pipeline1_settings <- function(pipeline1_settings, my_settings) {
 
-read_kde_settings <- function(kde_settings_file){
-  if (!file.exists(kde_settings_file)) {
-    stop(sprintf("KDE settings file not found: %s", kde_settings_file))
+  sample_name <- my_settings$sample
+
+  # Find existing row for this sample
+  idx <- which(pipeline1_settings$sample == sample_name)
+
+  if (length(idx) == 0) {
+    # Sample doesn't exist - add new row with NAs, fill in what we have
+    new_row <- pipeline1_settings[0, ]  # Empty row with correct structure
+    new_row[1, ] <- NA  # Fill with NAs
+    new_row[1, "sample"] <- sample_name
+
+    # Fill in only the provided fields
+    for (field in names(my_settings)) {
+      if (field != "sample" && field %in% names(pipeline1_settings)) {
+        new_row[1, field] <- my_settings[[field]]
+      }
+    }
+
+    pipeline1_settings <- rbind(pipeline1_settings, new_row)
+    cat(sprintf("Added new settings for sample '%s'\n", sample_name))
+
+  } else {
+    # Sample exists - update only the provided fields
+    for (field in names(my_settings)) {
+      if (field != "sample" && field %in% names(pipeline1_settings)) {
+        pipeline1_settings[idx, field] <- my_settings[[field]]
+      }
+    }
+    cat(sprintf("Updated settings for sample '%s'\n", sample_name))
   }
-  kde_settings_read <- readRDS(kde_settings_file)
-  return(kde_settings_read)
+
+  rownames(pipeline1_settings) <- NULL
+  return(pipeline1_settings)
 }
 
 read_cluster_settings <- function(cluster_settings_file = cluster_settings_file){
@@ -333,184 +365,161 @@ read_harmony_settings <- function(harmony_settings_file = harmony_settings_file)
   return(harmony_settings_read)
 }
 
-verify_trimming_settings <- function(trimming_settings, my_trimming_settings,
-                                     quiet = FALSE) {
-  sample_name <- my_trimming_settings$sample
-  existing_row <- trimming_settings[trimming_settings$sample == sample_name, ]
-  if (nrow(existing_row) == 0) {
-    cat(sprintf("Sample '%s' is new. No previous trimming settings to compare to.\n", sample_name))
-  } else {
-    if (quiet == FALSE) {
-      cat(sprintf("Current settings for sample '%s':\n", sample_name))
-      print(existing_row)
-      cat("Proposed new settings:\n")
-      # Reorder proposed settings to match the data frame's column order
-      print(as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)[, colnames(trimming_settings), drop = FALSE])
-    }
-    # Show changes
-    changed <- sapply(colnames(trimming_settings), function(field) {
-      old <- existing_row[[field]]
-      new <- my_trimming_settings[[field]]
-      !identical(old, new)
-    })
-    
-    if (any(changed)) {
-      cat("Fields that will change:\n")
-      print(colnames(trimming_settings)[changed])
-    } else {
-      cat("No changes detected for this sample.\n")
-    }
-  }
-}
-
-# Updates or adds a sample's settings in the in-memory data.frame
-update_trimming_settings <- function(trimming_settings, my_trimming_settings) {
-  sample_name <- my_trimming_settings$sample
-  if (is.null(trimming_settings)) {
-    trimming_settings <- as.data.frame(my_trimming_settings, stringsAsFactors = FALSE)
-  } else {
-    idx <- which(trimming_settings$sample == sample_name)
-    if (length(idx) == 0) {
-      # Add new row
-      trimming_settings <- rbind(trimming_settings, as.data.frame(my_trimming_settings, stringsAsFactors = FALSE))
-      cat(sprintf("Added new settings for sample '%s'.\n", sample_name))
-    } else {
-      # Update existing row
-      for (field in names(my_trimming_settings)) {
-        trimming_settings[idx, field] <- my_trimming_settings[[field]]
-      }
-      cat(sprintf("Updated settings for sample '%s'.\n", sample_name))
-    }
-  }
-  rownames(trimming_settings) <- NULL
-  return(trimming_settings)
-}
-
-verify_kde_settings <- function(kde_settings, my_kde_settings) {
-  sample_name <- my_kde_settings$sample
-  existing_row <- kde_settings[kde_settings$sample == sample_name, ]
-  if (nrow(existing_row) == 0) {
-    cat(sprintf("Sample '%s' is new. No existing KDE settings.\n", sample_name))
-  } else {
-    cat(sprintf("Current KDE settings for sample '%s':\n", sample_name))
-    print(existing_row)
-    cat("Proposed new KDE settings:\n")
-    print(as.data.frame(my_kde_settings, stringsAsFactors = FALSE)[, colnames(kde_settings), drop = FALSE])
-    # Show changes
-    changed <- sapply(colnames(kde_settings), function(field) {
-      old <- existing_row[[field]]
-      new <- my_kde_settings[[field]]
-      !identical(old, new)
-    })
-    if (any(changed)) {
-      cat("Fields that will change:\n")
-      print(colnames(kde_settings)[changed])
-    } else {
-      cat("No changes detected for this sample.\n")
-    }
-  }
-}
-
-update_kde_settings <- function(kde_settings, my_kde_settings) {
-  sample_name <- my_kde_settings$sample
-  if (is.null(kde_settings)) {
-    kde_settings <- as.data.frame(my_kde_settings, stringsAsFactors = FALSE)
-  } else {
-    idx <- which(kde_settings$sample == sample_name)
-    if (length(idx) == 0) {
-      kde_settings <- rbind(kde_settings, as.data.frame(my_kde_settings,
-                      stringsAsFactors = FALSE)[, colnames(kde_settings), drop = FALSE])
-      cat(sprintf("Added new KDE settings for sample '%s'.\n", sample_name))
-    } else {
-      for (field in names(my_kde_settings)) {
-        kde_settings[idx, field] <- my_kde_settings[[field]]
-      }
-      cat(sprintf("Updated KDE settings for sample '%s'.\n", sample_name))
-    }
-  }
-  rownames(kde_settings) <- NULL
-  return(kde_settings)
-}
-
+#' Generate per-sample pipeline1 report
+#'
+#' Creates a text report summarizing QC steps and settings
+#'
+#' @param sample Sample name
+#' @param base_obj Base Seurat object (after import)
+#' @param trim_obj After 1D trimming
+#' @param kde_obj After KDE trimming
+#' @param final_obj Final object (after doublet removal if applicable)
+#' @param pipeline1_path Path where final object was saved
+#' @param pipeline1_settings Dataframe with all settings
+#' @param use_scdblfinder Whether doublet removal was performed
+#' @param doublet_stats Optional list with doublet statistics (if performed)
+#' @param report_dir Directory to save report (default: project_export)
 generate_sample_report <- function(
     sample,
     base_obj,
     trim_obj,
     kde_obj,
+    final_obj,
     pipeline1_path,
-    trimming_settings,
-    kde_settings,
-    report_dir = project_outdir
+    pipeline1_settings,
+    use_scdblfinder = FALSE,
+    doublet_stats = NULL,
+    report_dir = project_export
 ) {
+  
   report_path <- file.path(report_dir, paste0(sample, "_pipeline1_report.txt"))
   
-  # Gather trimming settings for this sample
-  this_trim <- trimming_settings[trimming_settings$sample == sample, , drop = FALSE]
+  # Get settings for this sample
+  params <- pipeline1_settings[pipeline1_settings$sample == sample, ]
   
-  # Compose trimming settings as readable lines
-  trim_lines <- paste(sprintf("  %s = %s", names(this_trim), as.character(this_trim[1,])))
+  # Cell counts at each stage
+  n_base <- nrow(base_obj@meta.data)
+  n_trim <- nrow(trim_obj@meta.data)
+  n_kde <- nrow(kde_obj@meta.data)
+  n_final <- nrow(final_obj@meta.data)
   
-  # KDE trim settings (allow variable arguments)
-  params_row <- kde_settings[kde_settings$sample == sample, , drop = FALSE]
+  # Feature counts
+  rna_base <- nrow(base_obj[["RNA"]])
+  atac_base <- nrow(base_obj[["ATAC"]])
+  rna_trim <- nrow(trim_obj[["RNA"]])
+  atac_trim <- nrow(trim_obj[["ATAC"]])
+  rna_kde <- nrow(kde_obj[["RNA"]])
+  atac_kde <- nrow(kde_obj[["ATAC"]])
+  rna_final <- nrow(final_obj[["RNA"]])
+  atac_final <- nrow(final_obj[["ATAC"]])
   
-  atac_percentile <- as.numeric(params_row$atac_percentile[1])
-  rna_percentile  <- as.numeric(params_row$rna_percentile[1])
-  combine_method  <- as.character(params_row$combine_method[1])
+  # Build trimming settings text
+  trim_fields <- c("min_nCount_ATAC", "max_nCount_ATAC", "min_nCount_RNA", "max_nCount_RNA",
+                   "min_nss", "max_nss", "max_percentMT", "min_TSS", "max_TSS")
+  trim_lines <- sapply(trim_fields, function(f) {
+    sprintf("  %s = %s", f, as.character(params[[f]]))
+  })
   
-  kde_lines <- c(
-    sprintf("  atac_percentile = %s", atac_percentile),
-    sprintf("  rna_percentile = %s", rna_percentile),
-    sprintf("  combine_method = %s", combine_method)
-  )
+  # Build KDE settings text
+  kde_fields <- c("atac_percentile", "rna_percentile", "combine_method")
+  kde_lines <- sapply(kde_fields, function(f) {
+    sprintf("  %s = %s", f, as.character(params[[f]]))
+  })
   
-  base_rna_counts <- if ("RNA" %in% names(base_obj)) GetAssayData(base_obj[["RNA"]], layer = "counts") else NULL
-  base_atac_counts <- if ("ATAC" %in% names(base_obj)) GetAssayData(base_obj[["ATAC"]], layer = "counts") else NULL
-  base_rna_features <- if (!is.null(base_rna_counts)) nrow(base_rna_counts) else NA
-  base_atac_features <- if (!is.null(base_atac_counts)) nrow(base_atac_counts) else NA
-  
-  trim_rna_counts <- if ("RNA" %in% names(trim_obj)) GetAssayData(trim_obj[["RNA"]], layer = "counts") else NULL
-  trim_atac_counts <- if ("ATAC" %in% names(trim_obj)) GetAssayData(trim_obj[["ATAC"]], layer = "counts") else NULL
-  trim_rna_features <- if (!is.null(trim_rna_counts)) nrow(trim_rna_counts) else NA
-  trim_atac_features <- if (!is.null(trim_atac_counts)) nrow(trim_atac_counts) else NA
-  
-  # RNA/ATAC cell and feature counts after KDE trim
-  rna_cells <- ncol(GetAssayData(kde_obj[["RNA"]], layer = "counts"))
-  rna_features <- nrow(GetAssayData(kde_obj[["RNA"]], layer = "counts"))
-  atac_cells <- ncol(GetAssayData(kde_obj[["ATAC"]], layer = "counts"))
-  atac_features <- nrow(GetAssayData(kde_obj[["ATAC"]], layer = "counts"))
-  
-  writeLines(c(
+  # Start writing report
+  report_lines <- c(
+    "=====================================",
     sprintf("Pipeline1 Sample Report for: %s", sample),
     sprintf("Date: %s", Sys.time()),
     "",
-    sprintf("Step 1: Cells at base (import): %d", nrow(base_obj@meta.data)),
-    sprintf("Step 1: Features at base (import):"),
-    sprintf("  RNA features (base): %s", ifelse(is.na(base_rna_features), "NA", as.character(base_rna_features))),
-    sprintf("  ATAC features (base): %s", ifelse(is.na(base_atac_features), "NA", as.character(base_atac_features))),
-    sprintf("Step 2: Cells after 1D trim: %d", nrow(trim_obj@meta.data)),
-    sprintf("Step 2: Features after 1D trim:"),
-    sprintf("  RNA features (after 1D trim): %s", ifelse(is.na(trim_rna_features), "NA", as.character(trim_rna_features))),
-    sprintf("  ATAC features (after 1D trim): %s", ifelse(is.na(trim_atac_features), "NA", as.character(trim_atac_features))),
-    sprintf("Step 3: Cells after KDE trim: %d", nrow(kde_obj@meta.data)),
-    sprintf("Step 3: Features remaining after KDE trim (final QC):"),
-    sprintf("  RNA features (after KDE trim): %d", rna_features),
-    sprintf("  ATAC features (after KDE trim): %d", atac_features),
+    sprintf("Step 1: Cells at base (import): %d", n_base),
+    "Step 1: Features at base (import):",
+    sprintf("  RNA features (base): %d", rna_base),
+    sprintf("  ATAC features (base): %d", atac_base),
     "",
+    sprintf("Step 2: Cells after 1D trim: %d", n_trim),
+    sprintf("  Removed: %d cells (%.1f%%)", n_base - n_trim, 100*(n_base - n_trim)/n_base),
+    "Step 2: Features after 1D trim:",
+    sprintf("  RNA features (after 1D trim): %d", rna_trim),
+    sprintf("  ATAC features (after 1D trim): %d", atac_trim),
+    "",
+    sprintf("Step 3: Cells after KDE trim: %d", n_kde),
+    sprintf("  Removed: %d cells (%.1f%%)", n_trim - n_kde, 100*(n_trim - n_kde)/n_trim),
+    "Step 3: Features remaining after KDE trim:",
+    sprintf("  RNA features (after KDE trim): %d", rna_kde),
+    sprintf("  ATAC features (after KDE trim): %d", atac_kde),
+    ""
+  )
+  
+  # Add doublet detection section if performed
+  if (use_scdblfinder && !is.null(doublet_stats)) {
+    doublet_section <- c(
+      sprintf("Step 3.5: Doublet Detection (scDblFinder):"),
+      sprintf("  Cells before doublet removal: %d", doublet_stats$n_cells_before),
+      sprintf("  Expected doublets: %.1f (%.2f%%)", 
+              doublet_stats$expected_dbr, 
+              100 * doublet_stats$expected_dbr / doublet_stats$n_cells_before),
+      sprintf("  Detected doublets: %d (%.2f%%)", 
+              doublet_stats$n_doublets, 
+              doublet_stats$pct_doublets),
+      sprintf("  Detected singlets: %d (%.2f%%)", 
+              doublet_stats$n_singlets,
+              100 * doublet_stats$n_singlets / doublet_stats$n_cells_before),
+      sprintf("  Difference from expected: %+.1f doublets (%+.2f%%)",
+              doublet_stats$n_doublets - doublet_stats$expected_dbr,
+              doublet_stats$pct_doublets - 100 * doublet_stats$expected_dbr / doublet_stats$n_cells_before),
+      "",
+      "  Score statistics:",
+      sprintf("    Threshold: %.4f", doublet_stats$threshold),
+      sprintf("    Singlet scores (median): %.4f", doublet_stats$singlet_score_median),
+      sprintf("    Doublet scores (median): %.4f", doublet_stats$doublet_score_median),
+      sprintf("    Separation: %.4f", doublet_stats$doublet_score_median - doublet_stats$singlet_score_median),
+      "",
+      sprintf("Step 4: Cells after doublet removal: %d", n_final),
+      sprintf("  Removed: %d doublet cells", doublet_stats$n_doublets),
+      ""
+    )
+    report_lines <- c(report_lines, doublet_section)
+  } else if (use_scdblfinder && is.null(doublet_stats)) {
+    # Flag if doublets should have been run but stats missing
+    report_lines <- c(report_lines, 
+                     "Step 3.5: Doublet detection enabled but no statistics available",
+                     "")
+  }
+  
+  # Add settings used
+  report_lines <- c(report_lines,
     "The following initial 1D trimming settings were used:",
     trim_lines,
     "",
     "KDE trim settings:",
     kde_lines,
+    ""
+  )
+  
+  # Add final summary
+  report_lines <- c(report_lines,
+    "=== Final Summary ===",
+    sprintf("Total cells retained: %d / %d (%.1f%%)", 
+            n_final, n_base, 100*n_final/n_base),
+    sprintf("Total cells removed: %d (%.1f%%)", 
+            n_base - n_final, 100*(n_base - n_final)/n_base),
     "",
-    sprintf("Final object saved at: %s", pipeline1_path)
-  ), con = report_path)
+    sprintf("Final object saved at: %s", pipeline1_path),
+    "====================================="
+  )
+  
+  # Write to file
+  writeLines(report_lines, con = report_path)
+  
+  cat(sprintf("Sample report saved: %s\n", report_path))
 }
 
 #' Compare CellBender merge reports across samples
 #'
 #' @param mode "qc" or "pipeline" (determines report directory)
 #' @param samplelist Sample names to compare (if NULL, reads from 
-#'   trimming_settings_file)
+#'   pipeline1_settings_file)
 compare_cellbender_reports <- function(
   mode = c("qc", "pipeline"), 
   samplelist = NULL
@@ -519,11 +528,11 @@ compare_cellbender_reports <- function(
   
   # If samplelist not provided, read from trimming settings
   if (is.null(samplelist)) {
-    trimming_settings <- read_trimming_settings(trimming_settings_file)
-    samplelist <- trimming_settings$sample
+    pipeline1_settings <- read_pipeline1_settings(pipeline1_settings_file)
+    samplelist <- pipeline1_settings$sample
     cat(sprintf(
-      "Using samples from trimming_settings_file: %s\n", 
-      trimming_settings_file
+      "Using samples from pipeline1_settings_file: %s\n", 
+      pipeline1_settings_file
     ))
   }
   

@@ -19,10 +19,9 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
-trimming_settings <- read_trimming_settings(trimming_settings_file)
-kde_settings <- read_kde_settings(kde_settings_file)
+pipeline1_settings <- read_pipeline1_settings(pipeline1_settings_file)
 
-samplelist <- trimming_settings$sample
+samplelist <- pipeline1_settings$sample
 
 EnsDbAnnos <- loadannotations()
 
@@ -74,43 +73,75 @@ for (sample in samplelist) {
     kde_obj <- readRDS(kde_path)
   }
     
-  # STEP 4: preRNA
+  # STEP 4: Doublet Removal
+  doublet_stats <- NULL  # Initialize
+
+  if (use_scdblfinder) {
+    doublet_path <- get_rds_path(sample, "doublet_removed")
+    stats_path <- file.path(tmpfiledir, paste0(sample, "_doublet_stats.rds"))
+
+    if (!file.exists(doublet_path)) {
+      print("Removing doublets with scDblFinder.")
+      result <- doubletRemoveSample(kde_obj, qc_report = FALSE)
+      doublet_obj <- result$obj
+      doublet_stats <- result$stats
+
+      saveRDS(doublet_obj, doublet_path)
+      saveRDS(doublet_stats, stats_path)  # Save stats for reporting
+    } else {
+      print("Reading previous doublet-filtered file from vault")
+      doublet_obj <- readRDS(doublet_path)
+
+      #  Try to load stats if available
+      if (file.exists(stats_path)) {
+        doublet_stats <- readRDS(stats_path)
+      }
+    }
+
+    preRNA_input <- doublet_obj
+  } else {
+    preRNA_input <- kde_obj
+  }
+
+  # STEP 5: preRNA
   preRNA_path <- get_rds_path(sample, "preRNA")
   if (!file.exists(preRNA_path)) {
-    obj <- kde_obj
-    DefaultAssay(obj) <- "RNA"
-    obj <- NormalizeData(obj)
-    obj <- FindVariableFeatures(obj, selection.method = "vst",
+    preMerge_obj <- preRNA_input
+    DefaultAssay(preMerge_obj) <- "RNA"
+    preMerge_obj <- NormalizeData(preMerge_obj)
+    preMerge_obj <- FindVariableFeatures(preMerge_obj, selection.method = "vst",
                                 nfeatures = 2500)
-    #obj <- update_provenance(obj, "pre-merge_rna")
-    saveRDS(obj, preRNA_path)
+    saveRDS(preMerge_obj, preRNA_path)
   } else {
     print("Reading previous preRNA file from vault\n")
-    obj <- readRDS(preRNA_path)
+    preMergeobj <- readRDS(preRNA_path)
   }
   
-  # STEP 5: preATAC/pipeline1
+  # STEP 6: preATAC/pipeline1
   pipeline1_path <- get_rds_path(sample, "pipeline1")
   if (!file.exists(pipeline1_path)) {
-    DefaultAssay(obj) <- "ATAC"
-    obj <- RunTFIDF(obj)
-    obj <- FindTopFeatures(obj)
+    DefaultAssay(preMerge_obj) <- "ATAC"
+    preMerge_obj <- RunTFIDF(preMerge_obj)
+    preMerge_obj <- FindTopFeatures(preMerge_obj)
     #obj <- update_provenance(obj, "pre-merge_atac")
-    saveRDS(obj, pipeline1_path)
+    saveRDS(preMerge_obj, pipeline1_path)
   } else {
     print("Files already present for this sample for pipeline1\n")
-    obj <- readRDS(pipeline1_path)
+    preMerge_obj <- readRDS(pipeline1_path)
   }
   
-  # Step 6: Report and cleanup
+  # Step 7: Report and cleanup
   generate_sample_report(
     sample = sample,
     base_obj = base_obj,
     trim_obj = trim_obj,
     kde_obj = kde_obj,
+    final_obj = preRNA_input,  # After doublet removal if applicable
     pipeline1_path = pipeline1_path,
-    trimming_settings = trimming_settings,
-    kde_settings = kde_settings
+    pipeline1_settings = pipeline1_settings,
+    use_scdblfinder = use_scdblfinder,
+    doublet_stats = doublet_stats,
+    report_dir = project_export
   )
   
   gc() #R is obnoxious

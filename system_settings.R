@@ -4,14 +4,6 @@
 # Working directory that has everything in it.
 project_base_dir <- "/projects1/opioid"
 
-# If TRUE, base_object() will replace the CellRanger RNA counts with CellBender-corrected
-# RNA.  This requires that the CellBender output exists for each sample; otherwise
-# the pipeline will stop.
-use_cellbender <- TRUE
-
-#If TRUE, will run scDblFinder
-use_scdblfinder <- TRUE
-
 # if you downloaded a cellmarker csv from here:
 # http://bio-bigdata.hrbmu.edu.cn/CellMarker/CellMarkerSearch.jsp?index_species=Human&index_tissue=Brain
 # define location below
@@ -45,7 +37,7 @@ cb_datadir <- file.path(project_base_dir, "cb_data")
 rdsdir <- file.path(project_base_dir, "vault")
 
 # Project output directory for reports, settings, etc.
-project_outdir <- file.path(project_base_dir, "project_export")
+project_export <- file.path(project_base_dir, "project_export")
 
 # Temporary directory (ok to delete; used for scratch outputs during QC, etc.)
 tmpfiledir <- file.path(project_base_dir, "tmp")
@@ -54,25 +46,13 @@ tmpfiledir <- file.path(project_base_dir, "tmp")
 referencedir <- file.path(project_base_dir, "references")
 
 # Directory where pipeline1 writes per-sample CellBender merge reports (one CSV per sample)
-cellbender_report_dir <- file.path(project_outdir, "cellbender_merge_reports")
+cellbender_report_dir <- file.path(project_export, "cellbender_merge_reports")
 
-# Project 1D settings file
-trimming_settings_file <- file.path(project_outdir, "trimming_settings.Rds")
+# Project pipeline1 settings file
+pipeline1_settings_file <- file.path(project_export, "pipeline1_settings.Rds")
 
-# Project KDE settings file
-kde_settings_file <- file.path(project_outdir, "kde_settings.Rds")
-
-#Project Cluster settings file: dims, KNN, resolution
-cluster_settings_file <- file.path(project_outdir, "cluster_settings.Rds")
-
-#Project Celltype Mapping settings file
-celltype_settings_file <- file.path(project_outdir, "celltype_settings.Rds")
-
-#Project Celltype marker panel file.  CONTENTS ARE VERY SPECIFIC TO EACH PROJECT
-marker_panel_file <- file.path(referencedir, "stress_marker_panel_documented.csv")
-
-#Project Harmony Settings file
-harmony_settings_file <- file.path(project_outdir, "harmony_settings.Rds")
+#Project pipeline2 settings file
+pipeline2_settings_file <- file.path(project_export, "pipeline2_settings.Rds")
 
 #directory to store temporary files used during parameter sweep
 sweep_dir <- file.path(tmpfiledir, "param_sweep")
