@@ -126,6 +126,7 @@ for (sample in samplelist) {
     #obj <- update_provenance(obj, "pre-merge_atac")
     saveRDS(preMerge_obj, pipeline1_path)
   } else {
+    # why are we loading this if already present?  it isn't used prior to loop end
     print("Files already present for this sample for pipeline1\n")
     preMerge_obj <- readRDS(pipeline1_path)
   }
@@ -143,8 +144,6 @@ for (sample in samplelist) {
     doublet_stats = doublet_stats,
     report_dir = project_export
   )
-  
-  gc() #R is obnoxious
   cat(sprintf("Sample %s completed successfully.\n", sample))
 }
 #############copy TO here, to run in an IDE as a full block

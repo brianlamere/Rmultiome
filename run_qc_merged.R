@@ -3,6 +3,7 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #load object created at end of run_pipeline1.R
 merged_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
+init_project()
 
 # ============================================================================
 # PHASE 1: Clustering Parameter Selection
@@ -24,7 +25,7 @@ print(pc_check$lineplot)
 
 harmony_settings <- list(
   dims_use = 2:50,
-  random_seed = 1984,
+  random_seed = random_seed,
   max_iter = 50,
   project_dim = FALSE
 )
@@ -34,7 +35,7 @@ saveRDS(harmony_settings, harmony_settings_file)
 # === STEP 3: Run Harmony for parameter sweep ===
 harmony_obj <- harmonize_both(
   merged_obj,
-  random_seed = harmony_settings$random_seed,
+  random_seed = random_seed,
   harmony_max_iter = harmony_settings$max_iter,
   harmony_project.dim = harmony_settings$project_dim,
   harmony_dims = harmony_settings$dims_use
@@ -51,13 +52,14 @@ print(findElbow(harmony_obj))
 
 #BELOW IS VERY INTERESTING, DETERMINE WHAT TOP CELLS IN THE TRANSITIONING GROUPS ARE
 # === STEP 5: Run parameter sweep with metrics ===
+# I like 1:30knn40res0.16, 1:40k40r.160 
 sweep_results <- run_parameter_sweep_plots(
   seurat_obj = harmony_obj,
-  dims_range = list(c(1:43),c(1:44),c(1:45)),
-  knn_values = c(40),
-  res_values = c(0.16,0.17,0.18),
-  alg = 3,                   # SLM algorithm (required parameter)
-  cluster_seed = 1984       # Reproducibility (required parameter)
+  dims_range = list(c(1:30),c(1:40)),
+  knn_values = c(30, 40),
+  res_values = c(0.16,0.18),
+  alg = 3,                     # SLM algorithm (required parameter)
+  cluster_seed = random_seed   # Reproducibility (required parameter)
 )
 
 # Save full sweep results table
@@ -71,7 +73,7 @@ print(sweep_results[order(sweep_results$n_clusters), ])
 # === STEP 6: USER INPUT - Set chosen parameters ===
 # After reviewing plots, set these to your chosen values:
 chosen_dims_min <- 1      # CHANGE THIS
-chosen_dims_max <- 44     # CHANGE THIS
+chosen_dims_max <- 30     # CHANGE THIS
 chosen_knn <- 40          # CHANGE THIS
 chosen_resolution <- 0.16 # CHANGE THIS
 
@@ -82,7 +84,7 @@ cluster_settings <- data.frame(
   knn = chosen_knn,
   resolution = chosen_resolution,
   algorithm = 3,
-  random_seed = 1984
+  random_seed = random_seed
 )
 
 saveRDS(cluster_settings, cluster_settings_file)
@@ -103,10 +105,55 @@ chosen_obj <- cluster_data(
   chosen_obj,
   alg = cluster_settings$algorithm,
   res = cluster_settings$resolution,
-  cluster_seed = cluster_settings$random_seed,
+  cluster_seed = random_seed,
   singleton_handling = "keep",
   run_umap = TRUE
 )
+
+##################second run#############
+# After reviewing plots, set these to your chosen values:
+chosen_dims_min <- 1      # CHANGE THIS
+chosen_dims_max <- 40     # CHANGE THIS
+chosen_knn <- 40          # CHANGE THIS
+chosen_resolution <- 0.16 # CHANGE THIS
+
+# === STEP 7: Save cluster settings ===
+cluster_settings <- data.frame(
+  dims_min = chosen_dims_min,
+  dims_max = chosen_dims_max,
+  knn = chosen_knn,
+  resolution = chosen_resolution,
+  algorithm = 3,
+  random_seed = random_seed
+)
+
+saveRDS(cluster_settings, cluster_settings_file)
+
+# === STEP 8: Create final clustered object from settings ===
+cat("\n=== STEP 8: Applying cluster settings ===\n")
+
+# Read the settings you just saved
+dims <- cluster_settings$dims_min:cluster_settings$dims_max
+
+# Apply FMMN
+chosen40_obj <- FMMN_task(harmony_obj,
+                       knn = cluster_settings$knn,
+                       dims = dims)
+
+# Apply clustering
+chosen40_obj <- cluster_data(
+  chosen_obj,
+  alg = cluster_settings$algorithm,
+  res = cluster_settings$resolution,
+  cluster_seed = random_seed,
+  singleton_handling = "keep",
+  run_umap = TRUE
+)
+saveRDS(chosen40_obj, file.path(rdsdir, "nodbl_d1-40k40r.16.rds"))
+chosen40_obj <- readRDS(file.path(rdsdir, "nodbl_d1-40k40r.16.rds"))
+############end second run ######################
+
+
 
 # Quick summary
 n_clusters <- length(unique(Idents(chosen_obj))) -
@@ -122,7 +169,8 @@ maybe_new_device(width = 10, height = 8)
 print(DimPlot(chosen_obj, reduction = "wnn.umap", label = TRUE, raster = FALSE))
 
 # Save
-saveRDS(chosen_obj, file.path(rdsdir, "chosen_clustered_obj.rds"))
+saveRDS(chosen_obj, file.path(rdsdir, "nodbl_d1-30k40r.16.rds"))
+chosen30_obj <- readRDS(file.path(rdsdir, "nodbl_d1-30k40r.16.rds"))
 #adding as a checkpoint during code development
 # chosen_obj <- readRDS(file.path(rdsdir, "chosen_clustered_obj.rds"))
 
@@ -132,12 +180,10 @@ saveRDS(chosen_obj, file.path(rdsdir, "chosen_clustered_obj.rds"))
 
 # Note: refer to lymphocyte_investigation.R for exclusion reason
 
-# === STEP 9: Define and save marker panels ===
-# markers from https://pubmed.ncbi.nlm.nih.gov/40204703/
-# Zillich, Cell type-specific multiomics analysis of cocaine use disorder
-# in the human caudate nucleus
-cocaine_markers_list <- split(cocaine_paper_markers$gene,
-                             cocaine_paper_markers$celltype)
+chosen_obj <- chosen30_obj
+
+# Load consolidated markers
+cortex_markers <- readRDS(file.path(Rmultiome_path, "Cortex_Consolidated_Markers.rds"))
 
 # === STEP 10: Finding cluster markers ===
 
@@ -154,10 +200,28 @@ all_markers <- FindAllMarkers(
   chosen_obj,
   idents = clusters_to_analyze,
   only.pos = TRUE,
-  min.pct = 0.25,
+  min.pct = 0.10,
   logfc.threshold = 0.25,
   test.use = "wilcox"
 )
+
+# Use for automated typing
+results <- identify_all_celltypes(
+  all_markers,
+  cortex_markers$marker_lists,  # Uses the simplified lists
+  min_markers = 2,
+  min_score = 5,
+  verbose = TRUE
+)
+
+# Quick microglia vs macrophage check
+microglia_genes <- cortex_markers$marker_lists$Microglia
+macrophage_genes <- cortex_markers$marker_lists$Macrophages
+
+DotPlot(chosen_obj, 
+        features = c(microglia_genes, macrophage_genes),
+        idents = suspected_myeloid_cluster) +
+  ggtitle("Microglia vs Macrophage: Sankowski 2019 markers")
 
 # Save all markers
 write.csv(all_markers, 
@@ -438,5 +502,3 @@ cat("\n✓ Summary statistics saved\n")
 # ============================================================================
 
 # Save the filtered object with cell type annotations
-# saveRDS(chosen_obj, file = file.path(rdsdir, "chosen_obj_filtered_annotated.rds"))
-

@@ -265,11 +265,6 @@ doubletRemoveSample <- function(seurat_obj, pipeline1_settings = NULL, qc_report
   random_seed <- get("random_seed", envir = .GlobalEnv)
   doublet_rate_sd <- get("doublet_rate_sd", envir = .GlobalEnv)
 
-  # Load required package
-  if (!requireNamespace("scDblFinder", quietly = TRUE)) {
-    stop("scDblFinder package not installed. Install with: BiocManager::install('scDblFinder')")
-  }
-
   # Calculate parameters
   n_cells <- ncol(seurat_obj)
   dbr_rate <- expected_dbr / n_cells
@@ -278,7 +273,8 @@ doubletRemoveSample <- function(seurat_obj, pipeline1_settings = NULL, qc_report
     cat(sprintf("\n=== scDblFinder: %s ===\n", sample_name))
     cat(sprintf("Cells before doublet removal: %d\n", n_cells))
     cat(sprintf("Expected doublets: %.1f (%.2f%%)\n", expected_dbr, 100*dbr_rate))
-    cat(sprintf("Running scDblFinder with dbr=%.4f, dbr.sd=%.3f\n", dbr_rate, doublet_rate_sd))
+    cat(sprintf("Running scDblFinder with dbr=%.4f, dbr.sd=%.3f\n",
+        dbr_rate, doublet_rate_sd))
   }
 
   # Convert to SingleCellExperiment (using Seurat's conversion method)

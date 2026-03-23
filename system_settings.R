@@ -54,6 +54,18 @@ pipeline1_settings_file <- file.path(project_export, "pipeline1_settings.Rds")
 #Project pipeline2 settings file
 pipeline2_settings_file <- file.path(project_export, "pipeline2_settings.Rds")
 
+#Project Cluster settings file: dims, KNN, resolution
+cluster_settings_file <- file.path(project_export, "cluster_settings.Rds")
+
+#Project Celltype Mapping settings file
+celltype_settings_file <- file.path(project_export, "celltype_settings.Rds")
+
+#Project Celltype marker panel file.  CONTENTS ARE VERY SPECIFIC TO EACH PROJECT
+# marker_panel_file <- file.path(referencedir, "stress_marker_panel_documented.csv")
+
+#Project Harmony Settings file
+harmony_settings_file <- file.path(project_export, "harmony_settings.Rds")
+
 #directory to store temporary files used during parameter sweep
 sweep_dir <- file.path(tmpfiledir, "param_sweep")
 

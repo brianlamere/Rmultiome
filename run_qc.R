@@ -81,7 +81,6 @@ QCDensity_RNA(trimmed_obj)
 saveRDS(pipeline1_settings, pipeline1_settings_file)
 
 ###############KDE settings################################
-
 #step 2-1: define local KDE settings for sample
 #can re-print the plots, but your "before" is the same as the last set from 1D-trim above
 # KDE filtering combine methods:
@@ -97,47 +96,35 @@ my_kde_settings <- list(
   combine_method = "intersection"
 )
 
-#set 2-2: save to the settings dataframe
+######set 2-2: save to the settings dataframe
 verify_pipeline1_settings(pipeline1_settings, my_kde_settings)
 pipeline1_settings <- update_pipeline1_settings(pipeline1_settings, my_kde_settings)
 
-#step 2-3: Visualize via contours
+######step 2-3: Visualize via contours
 plot_kde_filter_contours(trimmed_obj, pipeline1_settings)
 
-#optional: Step 2-4: Visualize the difference between union and intersection
+######optional: Step 2-4: Visualize the difference between union and intersection
 plot_kde_filter_combine_compare_atac(trimmed_obj, pipeline1_settings)
 plot_kde_filter_combine_compare_rna(trimmed_obj, pipeline1_settings)
 
-#Repeat steps 2-1 to 2-4 as desired until you find the percentile and combine
+######Repeat steps 2-1 to 2-4 as desired until you find the percentile and combine
 # method you want to use.
 
-#step 2-5: save the KDE trimming setting
+######step 2-5: save the KDE trimming setting
 saveRDS(pipeline1_settings, pipeline1_settings_file)
 
 cat("\n=== Applying KDE Trimming ===\n")
 kde_obj <- kdeTrimSample(trimmed_obj, qc_report = TRUE)
 
-#Step 3: scDblFinder
+######Step 3: scDblFinder
 # Record cell count after KDE (for doublet rate calculation)
 n_cells <- ncol(kde_obj)
 cat(sprintf("Cells after KDE trim: %d\n", n_cells))
 
 # Calculate expected doublet rate for this sample
-expected_dbr <- (n_cells / 1000) * (doublet_rate_per_1000 / 10) * (n_cells / 100)
+expected_dbr <- (n_cells / 1000) * (doublet_rate_pct / 10) * (n_cells / 100)
 cat(sprintf("Expected doublets: %.1f (%.2f%% of %d cells)\n",
            expected_dbr, doublet_rate_pct, n_cells))
-
-################REMOVE ONCE RUN_QC IS REPEATED############
-# CHEAT: start from here and loop over samples, since you already have QC settings
-samplelist <- c("LG05", "LG08", "LG22", "LG23", "LG25", "LG26",
-                "LG300", "LG301", "LG31", "LG33", "LG38")
-pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
-EnsDbAnnos <- loadannotations()
-mysample <- "LG05"
-qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
-trimmed_obj <- trimSample(qc_obj)
-kde_obj <- kdeTrimSample(trimmed_obj, qc_report = TRUE)
-##########################################################
 
 # Store in pipeline1_settings
 my_doublet_settings <- list(
@@ -148,10 +135,13 @@ my_doublet_settings <- list(
 
 verify_pipeline1_settings(pipeline1_settings, my_doublet_settings)
 pipeline1_settings <- update_pipeline1_settings(pipeline1_settings, my_doublet_settings)
+saveRDS(pipeline1_settings, pipeline1_settings_file)
 
-# === STEP 4: Test scDblFinder ===
+###### === STEP 4: Test scDblFinder ===
 if (use_scdblfinder) {
-  doublet_obj <- doubletRemoveSample(kde_obj, qc_report = TRUE)
+  result <- doubletRemoveSample(kde_obj, qc_report = TRUE)
+  doublet_obj <- result$obj
+  doublet_stats <- result$stat
 
   cat("\n=== Evaluation ===\n")
   cat("Review the results:\n")
@@ -161,16 +151,17 @@ if (use_scdblfinder) {
   cat("If results look reasonable, settings will be used in run_pipeline1.R\n\n")
 }
 
-#step 4-1: start almost everything over
+######step 5: start almost everything over
 #protect yourself from stepping on yourself
-rm(mysample,qc_obj,my_trimming_settings,trimmed_obj,my_kde_settings)
-#Stop at this point, then repeat steps 1-2 to 3-1 for each sample, starting by
+rm(mysample,qc_obj,my_trimming_settings,trimmed_obj,my_kde_settings,my_doublet_settings,
+ n_cells, expected_dbr, doublet_obj)
+#Stop at this point, then repeat steps 1-2 to 5 for each sample, starting by
 # changing the "mysample" setting and looping back to here
 
-#step 4-1: compare cellbender reports
+######step 4-1: compare cellbender reports
 #compare all the cellbender reports as an aggregated list.  Call allows for
 # "samplelist=" but defaults to samplelist=trimming_settings$sample.
 # Example use: samplelist=c("LG05","LG08") as argument in call
-compare_cellbender_reports("qc")
+compare_cellbender_reports(samplelist=samplelist)
 
 #if everything looks good to this point, you're ready to use run_pipeline1.R

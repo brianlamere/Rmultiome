@@ -589,20 +589,13 @@ sample names.")
   rownames(combined) <- NULL
   
   # Display
-  cat(sprintf(
-    "\n=== CellBender Merge Report Comparison (%s mode) ===\n", 
-    mode
-  ))
+  cat(sprintf("\n=== CellBender Merge Report Comparison (%s mode) ===\n", mode ))
   cat(sprintf("Samples: %d\n", nrow(combined)))
   cat(sprintf("Report directory: %s\n\n", report_dir))
-  
-  print(combined, row.names = FALSE)
   
   # Write aggregated report to tmp for easy viewing
   agg_path <- file.path(report_dir, "aggregated_comparison.csv")
   write.csv(combined, agg_path, row.names = FALSE)
-  cat(sprintf("\nAggregated report saved to: %s\n", agg_path))
-  cat("View with: less -S <path> or import into your preferred tool\n\n")
 
   print(combined, row.names = FALSE)
 
