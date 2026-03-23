@@ -19,7 +19,7 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
-pipeline1_settings <- read_pipeline1_settings(pipeline1_settings_file)
+pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 
 samplelist <- pipeline1_settings$sample
 

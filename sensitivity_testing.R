@@ -1,7 +1,9 @@
 source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
-trimming_settings <- read_trimming_settings(trimming_settings_file)
+init_project()
+
+pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 cluster_settings <- read_cluster_settings(cluster_settings_file)
 celltype_settings <- read_celltype_settings(celltype_settings_file)
 harmony_settings <- read_harmony_settings(harmony_settings_file)
@@ -15,7 +17,7 @@ cat(sprintf("  Samples: %d\n", length(samples)))
 cat(sprintf("  Total cells: %d\n\n", ncol(merged_obj)))
 
 # Celltypes of interest - unique to your task
-celltypes_list <- c("Oligodendrocytes", "Microglia", "Astrocytes")
+celltypes_list <- c("Oligodendrocytes", "Microglia_Macrophages", "Astrocytes")
 
 # === Define comparisons (DOSE-RESPONSE CONVENTION) ===
 # Positive log2FC = gene/peak INCREASES with higher exposure
@@ -36,7 +38,7 @@ for (ct in names(celltype_markers)) {
 cat("\n")
 
 # Validation output directory
-validation_dir <- file.path(project_outdir, "LOO_validation_plots")
+validation_dir <- file.path(project_export, "LOO_validation_plots")
 dir.create(validation_dir, showWarnings = FALSE)
 
 # Suppress warnings, necessary because they persisted even with warning resolved
@@ -52,7 +54,7 @@ for (celltype in celltypes_list) {
     comp_name <- sprintf("%s_%s_vs_%s", celltype, comparison[1], comparison[2])
 
     # Load DE
-    de_file <- file.path(project_outdir,
+    de_file <- file.path(project_export,
                         sprintf("DiffExpress_results_pseudobulk_%s_%s_vs_%s.csv",
                                celltype, comparison[1], comparison[2]))
     if (file.exists(de_file)) {
@@ -63,7 +65,7 @@ for (celltype in celltypes_list) {
     }
 
     # Load DA
-    da_file <- file.path(project_outdir,
+    da_file <- file.path(project_export,
                         sprintf("DiffAccess_results_pseudobulk_%s_%s_vs_%s.csv",
                                celltype, comparison[1], comparison[2]))
     if (file.exists(da_file)) {
@@ -403,19 +405,19 @@ summary_stats <- data.frame(
 cat("=== Saving Results ===\n")
 
 write.csv(summary_stats,
-         file.path(project_outdir, "loo_summary.csv"),
+         file.path(project_export, "loo_summary.csv"),
          row.names = FALSE)
-cat(sprintf("✓ Saved: %s\n", file.path(project_outdir, "loo_summary.csv")))
+cat(sprintf("✓ Saved: %s\n", file.path(project_export, "loo_summary.csv")))
 
 write.csv(de_correlations,
-         file.path(project_outdir, "loo_de_correlations.csv"),
+         file.path(project_export, "loo_de_correlations.csv"),
          row.names = FALSE)
-cat(sprintf("✓ Saved: %s\n", file.path(project_outdir, "loo_de_correlations.csv")))
+cat(sprintf("✓ Saved: %s\n", file.path(project_export, "loo_de_correlations.csv")))
 
 write.csv(da_correlations,
-         file.path(project_outdir, "loo_da_correlations.csv"),
+         file.path(project_export, "loo_da_correlations.csv"),
          row.names = FALSE)
-cat(sprintf("✓ Saved: %s\n", file.path(project_outdir, "loo_da_correlations.csv")))
+cat(sprintf("✓ Saved: %s\n", file.path(project_export, "loo_da_correlations.csv")))
 
 saveRDS(loo_results, file.path(rdsdir, "loo_comprehensive_results.rds"))
 cat(sprintf("✓ Saved: %s\n", file.path(rdsdir, "loo_comprehensive_results.rds")))

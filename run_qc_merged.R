@@ -73,9 +73,9 @@ print(sweep_results[order(sweep_results$n_clusters), ])
 # === STEP 6: USER INPUT - Set chosen parameters ===
 # After reviewing plots, set these to your chosen values:
 chosen_dims_min <- 1      # CHANGE THIS
-chosen_dims_max <- 30     # CHANGE THIS
-chosen_knn <- 40          # CHANGE THIS
-chosen_resolution <- 0.16 # CHANGE THIS
+chosen_dims_max <- 40     # CHANGE THIS
+chosen_knn <- 44          # CHANGE THIS
+chosen_resolution <- 0.18 # CHANGE THIS
 
 # === STEP 7: Save cluster settings ===
 cluster_settings <- data.frame(
@@ -110,51 +110,6 @@ chosen_obj <- cluster_data(
   run_umap = TRUE
 )
 
-##################second run#############
-# After reviewing plots, set these to your chosen values:
-chosen_dims_min <- 1      # CHANGE THIS
-chosen_dims_max <- 40     # CHANGE THIS
-chosen_knn <- 40          # CHANGE THIS
-chosen_resolution <- 0.16 # CHANGE THIS
-
-# === STEP 7: Save cluster settings ===
-cluster_settings <- data.frame(
-  dims_min = chosen_dims_min,
-  dims_max = chosen_dims_max,
-  knn = chosen_knn,
-  resolution = chosen_resolution,
-  algorithm = 3,
-  random_seed = random_seed
-)
-
-saveRDS(cluster_settings, cluster_settings_file)
-
-# === STEP 8: Create final clustered object from settings ===
-cat("\n=== STEP 8: Applying cluster settings ===\n")
-
-# Read the settings you just saved
-dims <- cluster_settings$dims_min:cluster_settings$dims_max
-
-# Apply FMMN
-chosen40_obj <- FMMN_task(harmony_obj,
-                       knn = cluster_settings$knn,
-                       dims = dims)
-
-# Apply clustering
-chosen40_obj <- cluster_data(
-  chosen_obj,
-  alg = cluster_settings$algorithm,
-  res = cluster_settings$resolution,
-  cluster_seed = random_seed,
-  singleton_handling = "keep",
-  run_umap = TRUE
-)
-saveRDS(chosen40_obj, file.path(rdsdir, "nodbl_d1-40k40r.16.rds"))
-chosen40_obj <- readRDS(file.path(rdsdir, "nodbl_d1-40k40r.16.rds"))
-############end second run ######################
-
-
-
 # Quick summary
 n_clusters <- length(unique(Idents(chosen_obj))) -
               (if("singleton" %in% levels(Idents(chosen_obj))) 1 else 0)
@@ -165,22 +120,18 @@ cat(sprintf("Result: %d clusters, %d singletons (%.2f%%)\n",
            100 * n_singletons / ncol(chosen_obj)))
 
 # Quick viz
-maybe_new_device(width = 10, height = 8)
-print(DimPlot(chosen_obj, reduction = "wnn.umap", label = TRUE, raster = FALSE))
+#maybe_new_device(width = 10, height = 8)
+#print(DimPlot(chosen_obj, reduction = "wnn.umap", label = TRUE, raster = FALSE))
 
 # Save
-saveRDS(chosen_obj, file.path(rdsdir, "nodbl_d1-30k40r.16.rds"))
-chosen30_obj <- readRDS(file.path(rdsdir, "nodbl_d1-30k40r.16.rds"))
-#adding as a checkpoint during code development
-# chosen_obj <- readRDS(file.path(rdsdir, "chosen_clustered_obj.rds"))
+saveRDS(chosen_obj, file.path(rdsdir, "clustered_obj.rds"))
+# chosen_obj <- readRDS(file.path(rdsdir, "clustered_obj.rds"))
 
 # ============================================================================
 # PHASE 2: Cell Type Annotation
 # ============================================================================
 
 # Note: refer to lymphocyte_investigation.R for exclusion reason
-
-chosen_obj <- chosen30_obj
 
 # Load consolidated markers
 cortex_markers <- readRDS(file.path(Rmultiome_path, "Cortex_Consolidated_Markers.rds"))
@@ -282,61 +233,133 @@ if (length(unassigned) > 0) {
 # USER INPUT: Edit this mapping based on marker genes
 # This is an EXAMPLE - adjust based on your actual markers
 celltype_mapping <- data.frame(
-  cluster = 0:18,
+  cluster = c(0:29, "singleton"),
   celltype = c(
-    "Oligodendrocytes",           # 0 nature assignment
-    "Excitatory_Neurons",         # 1
-    "Astrocytes",                 # 2 nature assignment
-    "Microglia",                  # 3 nature assignment
-    "GABAergic_SST",              # 4
-    "OPCs",                       # 5 nature assignment
-    "Stressed_Dying_Cells",       # 6 REMOVE
-    "GABAergic_VIP",              # 7
-    "Excitatory_Neurons",         # 8
-    "Excitatory_Neurons",         # 9
-    "Excitatory_Neurons",         # 10
-    "Excitatory_Neurons",         # 11
-    "Pericytes",                  # 12
-    "Endothelial",                # 13 nature assignment
-    "GABAergic_LAMP5",            # 14
-    "Excitatory_Neurons",         # 15
-    "Excitatory_Neurons",         # 16
-    "GABAergic_PVALB",            # 17 nature assignment
-    "Singleton"			  # singletons - remove
+    "Oligodendrocytes",           # 0 - high confidence (8.60)
+    "Excitatory_Neurons",         # 1 - high confidence (9.31)
+    "Astrocytes",                 # 2 - high confidence (32.03)
+    "Microglia_Macrophages",      # 3 - MIXED (Micro: 35.27, Macro: 38.89)
+    "OPCs",                       # 4 - high confidence (89.60)
+    "Astrocytes",                 # 5 - potential match (GFAP, AQP4)
+    "GABAergic_VIP",              # 6 - high confidence (35.57)
+    "Excitatory_Neurons",         # 7 - unassigned, likely neuronal
+    "GABAergic_SST",              # 8 - high confidence (36.59)
+    "GABAergic_PVALB",            # 9 - high confidence (38.50)
+    "Excitatory_Neurons",         # 10 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 11 - potential match (7.63)
+    "Excitatory_Neurons",         # 12 - unassigned, likely neuronal
+    "Pericytes",                  # 13 - HIGH confidence (74.00) ✅ CLEAN!
+    "GABAergic_LAMP5",            # 14 - high confidence (32.64)
+    "Endothelial",                # 15 - HIGH confidence (210.29) ✅ CLEAN!
+    "Excitatory_Neurons",         # 16 - potential match (8.04)
+    "Excitatory_Neurons",         # 17 - unassigned, likely neuronal
+    "GABAergic_PVALB",            # 18 - potential match (PVALB, GAD1)
+    "Oligodendrocytes",           # 19 - potential match (MBP, PLP1, MOBP)
+    "Excitatory_Neurons",         # 20 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 21 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 22 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 23 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 24 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 25 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 26 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 27 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 28 - unassigned, likely neuronal
+    "Excitatory_Neurons",         # 29 - unassigned, likely neuronal
+    "QC_Remove"                   # singleton
   ),
-    action = c(
-    rep("keep", 6),
-    "remove",                     # cluster 6
-    rep("keep", 11),
-    "remove"                      # singleton
+  action = c(
+    rep("keep", 30),              # Keep clusters 0-29
+    "remove"                      # Remove singleton
   ),
   markers_used = c(
-    "MBP, MOBP, PLP1",
-    "SLC17A7, CAMK2A, SATB2, TBR1, NRGN",
-    "GFAP, ALDH1L1, GLUL, AQP4, SLC1A2, SLC4A4",
-    "CSF1R, APBB1IP, P2RY12",
-    "GAD1, GAD2, SST, TAC1, ARX",
-    "VCAN, PDGFRA, PCDH15",
-    "VIM, GFAP, NEFM, NEFL, NRGN",
-    "GAD1, GAD2, VIP, CALB2, TAC3",
-    "SLC17A7, CAMK2A, SATB2, TBR1, FOXP2",
-    "SLC17A7, CAMK2A, SATB2, TBR1, FOXP2",
-    "SLC17A7, CAMK2A, SATB2, TBR1, FOXP2",
-    "SLC17A7, CAMK2A, SATB2, BCL11B, FEZF2",
-    "PDGFRB, RGS5, NOTCH3, CARMN",
-    "FLT1, CLDN5",
-    "GAD1, GAD2, LAMP5, KIT",
-    "SLC17A7, CAMK2A, SATB2, TBR1",
-    "SLC17A7, CAMK2A, SATB2, BCL11B, FEZF2, PCP4",
-    "GAD1, GAD2, PVALB, PTHLH",
-    "QC_flag"
+    "MBP, MOBP, PLP1",                                    # 0
+    "SLC17A7, CAMK2A, SATB2, TBR1",                      # 1
+    "GFAP, ALDH1L1, GLUL, AQP4, SLC1A2, SLC4A4",        # 2
+    "P2RY12, CX3CR1 (microglia); CD163, MRC1 (macrophages)", # 3
+    "VCAN, PDGFRA, PCDH15",                              # 4
+    "GFAP, AQP4 (weak)",                                 # 5
+    "GAD1, GAD2, VIP",                                   # 6
+    "Excitatory markers (check manually)",               # 7
+    "GAD1, GAD2, SST",                                   # 8
+    "GAD1, GAD2, PVALB",                                 # 9
+    "Excitatory markers (check manually)",               # 10
+    "SLC17A7, CAMK2A, SATB2, TBR1",                     # 11
+    "Excitatory markers (check manually)",               # 12
+    "PDGFRB, RGS5, NOTCH3",                             # 13 PERICYTES!
+    "GAD1, GAD2, LAMP5",                                 # 14
+    "FLT1, CLDN5",                                       # 15 ENDOTHELIAL!
+    "SATB2, TBR1, SLC17A7, CAMK2A",                     # 16
+    "Excitatory markers (check manually)",               # 17
+    "PVALB, GAD1",                                       # 18
+    "MBP, PLP1, MOBP (weak)",                           # 19
+    "Excitatory markers (check manually)",               # 20
+    "Excitatory markers (check manually)",               # 21
+    "Excitatory markers (check manually)",               # 22
+    "Excitatory markers (check manually)",               # 23
+    "Excitatory markers (check manually)",               # 24
+    "Excitatory markers (check manually)",               # 25
+    "Excitatory markers (check manually)",               # 26
+    "Excitatory markers (check manually)",               # 27
+    "Excitatory markers (check manually)",               # 28
+    "Excitatory markers (check manually)",               # 29
+    "QC_flag"                                            # singleton
   ),
   confidence = c(
-    "high", "medium", "high", "high",
-    "high", "high", "low", "high",
-    "medium", "medium", "medium", "medium",
-    "high", "high", "high",
-    "medium", "medium", "high","high"
+    "high",    # 0
+    "high",    # 1
+    "high",    # 2
+    "high",    # 3 (biological mixture)
+    "high",    # 4
+    "low",     # 5 (weak markers)
+    "high",    # 6
+    "medium",  # 7
+    "high",    # 8
+    "high",    # 9
+    "medium",  # 10
+    "high",    # 11
+    "medium",  # 12
+    "high",    # 13 PERICYTES
+    "high",    # 14
+    "high",    # 15 ENDOTHELIAL
+    "high",    # 16
+    "medium",  # 17
+    "medium",  # 18
+    "low",     # 19 (weak oligo markers)
+    "medium",  # 20-29 (unassigned excitatory)
+    "medium",
+    "medium",
+    "medium",
+    "medium",
+    "medium",
+    "medium",
+    "medium",
+    "medium",
+    "medium",
+    "high"     # singleton (remove)
+  ),
+  notes = c(
+    "Mature myelinating oligodendrocytes",
+    "Excitatory neurons, cortical layer unspecified",
+    "Protoplasmic astrocytes",
+    "MIXED: CNS-resident microglia (P2RY12+ 26%, CX3CR1+ 14%) + infiltrating macrophages (CD163+ 13%, MRC1+ 13%). Biologically expected in HIV+ tissue. Macrophage score slightly higher (38.89 vs 35.27).",
+    "Oligodendrocyte precursor cells",
+    "Weak astrocyte markers; possible reactive astrocytes or mixed population",
+    "VIP+ interneurons",
+    "Likely excitatory neurons; verify with top markers",
+    "SST+ Martinotti interneurons",
+    "PVALB+ fast-spiking basket interneurons",
+    "Likely excitatory neurons; verify with top markers",
+    "Excitatory neurons, likely upper cortical layers",
+    "Likely excitatory neurons; verify with top markers",
+    "Pericytes - mural cells surrounding blood vessels. CLEANLY SEPARATED from endothelial!",
+    "LAMP5+ neurogliaform interneurons",
+    "Vascular endothelial cells with tight junction markers. CLEANLY SEPARATED from pericytes!",
+    "Excitatory neurons, likely deep cortical layers",
+    "Likely excitatory neurons; verify with top markers",
+    "Additional PVALB+ interneuron population",
+    "Weak oligodendrocyte markers; possible stressed/transitioning cells",
+    rep("Likely excitatory neurons; verify with top markers", 10),  # 20-29
+    "Singletons - QC flagged for removal"
   ),
   stringsAsFactors = FALSE
 )
@@ -379,7 +402,7 @@ DimPlot(chosen_obj, group.by = "celltype", label = TRUE, raster = FALSE)
 # NO.  This creates a non-idempotent process.
 #chosen_obj <- chosen_obj_filtered
 #rm(chosen_obj_filtered)
-saveRDS(chosen_obj_filtered, file.path(rdsdir, "final_qc_obj.rds"))
+saveRDS(chosen_obj, file.path(rdsdir, "final_qc_obj.rds"))
 
 # ============================================================================
 # VISUALIZATION: CELL TYPE DIMPLOT

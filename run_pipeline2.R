@@ -1,7 +1,8 @@
 source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
+init_project()
 
-pipeline1_settings <- read_pipeline1_settings(pipeline1_settings_file)
+pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 cluster_settings <- read_cluster_settings(cluster_settings_file)
 celltype_settings <- read_celltype_settings(celltype_settings_file)
 harmony_settings <- read_harmony_settings(harmony_settings_file)
@@ -67,7 +68,7 @@ DefaultAssay(obj_assigned) <- "RNA"
 obj_assigned <- JoinLayers(obj_assigned)
 
 # Define cell types and comparisons for DE/DA
-celltypes_list <- c("Oligodendrocytes", "Microglia", "Astrocytes")
+celltypes_list <- c("Oligodendrocytes", "Microglia_Macrophages", "Astrocytes")
 comparisons_list <- list(
   c("Low", "No_HIV"),
   c("Acute", "Low"),
@@ -86,7 +87,7 @@ for (celltype in celltypes_list) {
       group_col = "group",
       ident.1 = comparison[1],
       ident.2 = comparison[2],
-      output_prefix = file.path(project_outdir, "DiffExpress_results"),
+      output_prefix = file.path(project_export, "DiffExpress_results"),
       min_cells_per_sample = 50
     )
   }
@@ -106,8 +107,23 @@ for (celltype in celltypes_list) {
       group_col = "group",
       ident.1 = comparison[1],
       ident.2 = comparison[2],
-      output_prefix = file.path(project_outdir, "DiffAccess_results"),
+      output_prefix = file.path(project_export, "DiffAccess_results"),
       min_cells_per_sample = 50
     )
   }
 }
+
+p1 <- DimPlot(obj_assigned,
+             reduction = "wnn.umap",
+             group.by = "celltype",
+             #cols = celltype_colors,
+             label = TRUE,
+             label.size = 5,
+             repel = TRUE,
+             raster = FALSE) +
+  ggtitle("Cell Type Annotation - Prefrontal Cortex") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14))
+
+pdf(file.path(project_export, "UMAP_celltype_labeled_font5.pdf"), width = 12, height = 10)
+print(p1)
+dev.off()
