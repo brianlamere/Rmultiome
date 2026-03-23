@@ -144,8 +144,8 @@ target_markers <- function(harmony_obj, numMarks = 5) {
 }
 
 transfer_labels <- function(loo_obj,
-                           celltype_markers,      # List: celltype → markers
-                           celltypes_of_interest, # Vector of celltypes
+                           celltype_markers,
+                           celltypes_of_interest,
                            output_dir = NULL,
                            sample_name = NULL) {
 
@@ -187,9 +187,13 @@ transfer_labels <- function(loo_obj,
       cluster = cluster_id,
       assigned_celltype = best_match,
       jaccard_score = best_score,
-      n_cells = sum(loo_obj$seurat_clusters == cluster_id)
+      n_cells = sum(loo_obj$seurat_clusters == cluster_id),
+      stringsAsFactors = FALSE
     ))
   }
+
+  # FIX: Reset row names to avoid duplicate row.names error
+  rownames(cluster_assignments) <- NULL
 
   cat("    Cluster assignments:\n")
   print(cluster_assignments[order(cluster_assignments$cluster),
