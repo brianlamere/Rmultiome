@@ -121,7 +121,12 @@ for (i in seq_along(samples)) {
     res = cluster_settings$resolution, cluster_seed = cluster_settings$random_seed,
     singleton_handling = "discard", run_umap = TRUE)
 
-  # 5. Transfer labels
+  # === STEP 5: Join layers for DE/DA ===
+  cat("  Joining RNA layers...\n")
+  DefaultAssay(loo_obj) <- "RNA"
+  loo_obj <- JoinLayers(loo_obj)
+
+  # STEP 6: Transfer labels
   transfer_result <- transfer_labels(loo_obj = loo_obj, celltype_markers = celltype_markers,
     celltypes_of_interest = celltypes_list, output_dir = validation_dir,
     sample_name = sample_to_exclude)
@@ -130,11 +135,6 @@ for (i in seq_along(samples)) {
   # Report cell types
   cat("    Cell types transferred:\n")
   print(table(loo_obj$celltype))
-
-  # === STEP 6: Join layers for DE/DA ===
-  cat("  Joining RNA layers...\n")
-  DefaultAssay(loo_obj) <- "RNA"
-  loo_obj <- JoinLayers(loo_obj)
 
   # === STEP 7: Differential Expression (sequential, ~5-10 min) ===
   cat("  Running pseudo-bulk DE (sequential)...\n")
