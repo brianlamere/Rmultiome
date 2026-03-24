@@ -166,6 +166,10 @@ all_markers <- FindAllMarkers(
   test.use = "wilcox"
 )
 
+#adding just to speed up reproducing the error.  remove after.
+# saveRDS(all_markers, file.path(tmpfiledir, "saved_all_markers.rds"))
+# all_markers <- readRDS(file.path(tmpfiledir, "saved_all_markers.rds"))
+
 # Use for automated typing
 results <- identify_all_celltypes(
   all_markers,
