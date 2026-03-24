@@ -40,11 +40,20 @@ for (i in seq_along(samples)) {
   loo_obj <- subset(merged_obj, subset = orig.ident != sample_to_exclude)
   #Harmony, FMMN, clustering
   clustered_obj <- harmony_FMMN_cluster_task(merged_obj)
-  #join layers, assign celltypes
-  # TODO: WIP
-  DefaultAssay(obj_assigned) <- "RNA"
-  obj_assigned <- JoinLayers(obj_assigned)
-  # new DE/DA
+  cat("join layers, assign celltypes\n")
+  DefaultAssay(clustered_obj) <- "RNA"
+  loo_obj <- JoinLayers(clustered_obj)
+  typing_results <- assign_celltype_from_dotplot(loo_obj, cortex_markers$markers_lists)
+  cluster_to_celltype <- typing_results$assignments %>%
+    filter(!is.na(cluster), !is.na(celltype)) %>%
+    select(cluster, celltype, confidence, score)
+  loo_obj$celltype <- cluster_to_celltype$celltype[
+    match(as.character(loo_obj$seurat_clusters),
+        as.character(cluster_to_celltype$cluster))]
+  # Subset to cell types of interest
+  loo_obj <- subset(loo_obj, subset = celltype %in% celltypes_list)
+  # Good to this line?
+  # TODO: WIP, new DE/DA (below is just pulled from run_pipeline2.R, needs mods.
   # Run Differential Expression (PSEUDO-BULK)
   for (celltype in celltypes_list) {
     for (comparison in comparisons_list) {
