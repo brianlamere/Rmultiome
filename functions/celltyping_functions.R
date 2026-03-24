@@ -362,7 +362,7 @@ apply_celltype_labels <- function(seurat_obj,
   return(seurat_obj)
 }
 
-#because chatbots don't actually care what you say, they just give non-working code
+# faster for purposes of sensitivity testing
 assign_celltype_from_dotplot <- function(seurat_obj, marker_lists, min_cells = 50,
                                          cluster_col = "seurat_clusters") {
   assignments <- data.frame()
