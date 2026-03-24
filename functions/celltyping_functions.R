@@ -361,3 +361,45 @@ apply_celltype_labels <- function(seurat_obj,
 
   return(seurat_obj)
 }
+
+#because chatbots don't actually care what you say, they just give non-working code
+assign_celltype_from_dotplot <- function(seurat_obj, marker_lists, min_cells = 50,
+                                         cluster_col = "seurat_clusters") {
+  assignments <- data.frame()
+  clusters_to_type <- names(table(Idents(seurat_obj)))[
+    table(Idents(seurat_obj)) >= min_cells &
+  names(table(Idents(seurat_obj))) != "singleton"
+  ]
+  typing_obj <- subset(seurat_obj, idents = clusters_to_type)
+
+  for (celltype in names(marker_lists)) {
+    markers <- marker_lists[[celltype]]
+
+    # Make dotplot
+    #Idents(seurat_obj) <- seurat_obj$cluster_col
+    dp <- DotPlot(typing_obj, features = markers)
+
+    # Extract data: avg.exp (expression) and pct.exp (% cells)
+    dp_data <- dp$data %>%
+      group_by(id) %>%  # id = cluster
+      summarize(
+        mean_exp = mean(avg.exp.scaled),
+        mean_pct = mean(pct.exp),
+        score = mean(avg.exp.scaled * pct.exp)  # Combined metric
+      ) %>%
+      mutate(celltype = celltype)
+
+    assignments <- rbind(assignments, dp_data)
+  }
+
+  # Best assignment per cluster
+  best <- assignments %>%
+    group_by(id) %>%
+    slice_max(score, n = 1) %>%
+    rename(cluster = id)
+
+  return(list(
+    assignments = best,
+    all_scores = assignments
+  ))
+}

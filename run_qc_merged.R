@@ -179,6 +179,7 @@ results <- identify_all_celltypes(
   verbose = TRUE
 )
 
+
 # Quick microglia vs macrophage check
 microglia_genes <- cortex_markers$marker_lists$Microglia
 macrophage_genes <- cortex_markers$marker_lists$Macrophages
