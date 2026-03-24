@@ -18,7 +18,11 @@ samples <- unique(merged_obj$orig.ident)
 cat(sprintf("  Samples: %d\n", length(samples)))
 cat(sprintf("  Total cells: %d\n\n", ncol(merged_obj)))
 
-celltypes_list <- c("Oligodendrocytes", "Microglia_Macrophages", "Astrocytes")
+# Original as labeled in full data set, where more involved typing found microglia had 
+# macrophage markers as well
+celltypes_list_original <- c("Oligodendrocytes", "Microglia_Macrophages", "Astrocytes")
+# Revised, with what the quicker sensitivity assignment will find
+celltypes_list <- c("Oligodendrocytes", "Microglia", "Astrocytes")
 comparisons_list <- list(c("Low", "No_HIV"),c("Acute", "Low"),c("Chronic", "Low"))
 
 # Extract markers from existing settings
@@ -36,11 +40,12 @@ overall_start <- Sys.time()
 
 for (i in seq_along(samples)) {
   sample_to_exclude <- samples[i]
-  #Subset
+  cat(paste(rep("=", 40), collapse = ""), "\n")
+  cat(sprintf("==Excluding: %s at Time: %s\n", sample_to_exclude, format(Sys.time(), "%X")))
+  cat(" INFO: Subsetting, running harmony, FMMN, and clustering\n")
   loo_obj <- subset(merged_obj, subset = orig.ident != sample_to_exclude)
-  #Harmony, FMMN, clustering
-  clustered_obj <- harmony_FMMN_cluster_task(merged_obj)
-  cat("join layers, assign celltypes\n")
+  clustered_obj <- harmony_FMMN_cluster_task(loo_obj)
+  cat(" INFO: Joining layers, assigning celltypes\n")
   DefaultAssay(clustered_obj) <- "RNA"
   #loo_obj <- JoinLayers(clustered_obj)
   typing_results <- assign_celltype_from_dotplot(seurat_obj = clustered_obj,
@@ -48,11 +53,11 @@ for (i in seq_along(samples)) {
   loo_obj <- JoinLayers(clustered_obj)
   cluster_to_celltype <- typing_results$assignments %>%
     filter(!is.na(cluster), !is.na(celltype)) %>%
-    select(cluster, celltype, confidence, score)
+    dplyr::select(cluster, celltype, score)
   loo_obj$celltype <- cluster_to_celltype$celltype[
     match(as.character(loo_obj$seurat_clusters),
         as.character(cluster_to_celltype$cluster))]
-  # Subset to cell types of interest
+  cat(" INFO: Subsetting to cell types of interest.\n")
   loo_obj <- subset(loo_obj, subset = celltype %in% celltypes_list)
   # Good to this line?
   # TODO: WIP, new DE/DA (below is just pulled from run_pipeline2.R, needs mods.
