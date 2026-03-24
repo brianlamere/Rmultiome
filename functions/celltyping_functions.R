@@ -366,33 +366,31 @@ apply_celltype_labels <- function(seurat_obj,
 assign_celltype_from_dotplot <- function(seurat_obj, marker_lists, min_cells = 50,
                                          cluster_col = "seurat_clusters") {
   assignments <- data.frame()
-  clusters_to_type <- names(table(Idents(seurat_obj)))[
-    table(Idents(seurat_obj)) >= min_cells &
-  names(table(Idents(seurat_obj))) != "singleton"
+
+  cluster_counts <- table(Idents(seurat_obj))
+  clusters_to_type <- names(cluster_counts)[
+    cluster_counts >= min_cells &
+    names(cluster_counts) != "singleton"
   ]
-  typing_obj <- subset(seurat_obj, idents = clusters_to_type)
+
+  # avoid subset() — select cells directly
+  cells_to_use <- colnames(seurat_obj)[Idents(seurat_obj) %in% clusters_to_type]
+  typing_obj <- seurat_obj[, cells_to_use]
 
   for (celltype in names(marker_lists)) {
     markers <- marker_lists[[celltype]]
-
-    # Make dotplot
-    #Idents(seurat_obj) <- seurat_obj$cluster_col
     dp <- DotPlot(typing_obj, features = markers)
-
-    # Extract data: avg.exp (expression) and pct.exp (% cells)
     dp_data <- dp$data %>%
-      group_by(id) %>%  # id = cluster
+      group_by(id) %>%
       summarize(
         mean_exp = mean(avg.exp.scaled),
         mean_pct = mean(pct.exp),
-        score = mean(avg.exp.scaled * pct.exp)  # Combined metric
+        score = mean(avg.exp.scaled * pct.exp)
       ) %>%
       mutate(celltype = celltype)
-
     assignments <- rbind(assignments, dp_data)
   }
 
-  # Best assignment per cluster
   best <- assignments %>%
     group_by(id) %>%
     slice_max(score, n = 1) %>%

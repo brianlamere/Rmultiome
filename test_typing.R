@@ -44,7 +44,7 @@ for (i in seq_along(samples)) {
   DefaultAssay(clustered_obj) <- "RNA"
   #loo_obj <- JoinLayers(clustered_obj)
   typing_results <- assign_celltype_from_dotplot(seurat_obj = clustered_obj,
-    cortex_markers$markers_lists)
+    cortex_markers$marker_lists)
   loo_obj <- JoinLayers(clustered_obj)
   cluster_to_celltype <- typing_results$assignments %>%
     filter(!is.na(cluster), !is.na(celltype)) %>%
