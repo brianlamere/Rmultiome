@@ -19,6 +19,8 @@ cat(sprintf("  Total cells: %d\n\n", ncol(merged_obj)))
 # Celltypes of interest - unique to your task
 celltypes_list <- c("Oligodendrocytes", "Microglia_Macrophages", "Astrocytes")
 
+cortex_markers <- readRDS(file.path(Rmultiome_path, "Cortex_Consolidated_Markers.rds"))
+
 # === Define comparisons (DOSE-RESPONSE CONVENTION) ===
 # Positive log2FC = gene/peak INCREASES with higher exposure
 # Negative log2FC = gene/peak DECREASES with higher exposure
@@ -126,12 +128,50 @@ for (i in seq_along(samples)) {
   DefaultAssay(loo_obj) <- "RNA"
   loo_obj <- JoinLayers(loo_obj)
 
-  # STEP 6: Transfer labels
-  transfer_result <- transfer_labels(loo_obj = loo_obj, celltype_markers = celltype_markers,
-    celltypes_of_interest = celltypes_list, output_dir = validation_dir,
-    sample_name = sample_to_exclude)
-  loo_obj <- transfer_result$obj  # Subsetted to 3 cell types
+  # === STEP 6: Transfer labels (FIXED: use same method as full dataset) ===
+  cat("  Finding cluster markers and assigning cell types...\n")
 
+  # Run FindAllMarkers (same parameters as run_qc_merged.R)
+  DefaultAssay(loo_obj) <- "RNA"
+  all_markers <- FindAllMarkers(
+    loo_obj,
+    only.pos = TRUE,
+    min.pct = 0.10,           # Match your main analysis
+    logfc.threshold = 0.25,
+    test.use = "wilcox"
+  )
+
+  typing_results <- identify_all_celltypes(
+    all_markers,
+    cortex_markers$marker_lists,
+    min_markers = 2,
+    min_score = 5,
+    verbose = FALSE,
+    print_conflicts = FALSE  # ← Suppress conflict printing in loop
+  )
+
+  # Extract cluster → celltype mapping
+  cluster_to_celltype <- typing_results$assignments %>%
+    filter(!is.na(cluster), !is.na(celltype)) %>%
+    select(cluster, celltype, confidence, score)
+  
+  # Assign to cells
+  loo_obj$celltype <- cluster_to_celltype$celltype[
+    match(as.character(loo_obj$seurat_clusters), 
+        as.character(cluster_to_celltype$cluster))]
+
+  # Subset to cell types of interest
+  loo_obj <- subset(loo_obj, subset = celltype %in% celltypes_list)
+
+  cat(sprintf("    Kept %d cells across cell types:\n", ncol(loo_obj)))
+  print(table(loo_obj$celltype))
+
+  # Optional: Save typing results for this LOO iteration
+  if (!is.null(validation_dir)) {
+    write.csv(cluster_to_celltype,
+       file.path(validation_dir, sprintf("loo_%s_typing.csv", sample_to_exclude)),
+           row.names = FALSE)
+  }
   # Report cell types
   cat("    Cell types transferred:\n")
   print(table(loo_obj$celltype))

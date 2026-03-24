@@ -7,13 +7,18 @@ transfer_labels <- function(loo_obj,
   # Step 1: Find markers for each LOO cluster
   cat("    Finding cluster markers...\n")
   loo_markers <- FindAllMarkers(loo_obj, only.pos = TRUE,
-                                min.pct = 0.25, logfc.threshold = 0.25,
+                                min.pct = 0.10, logfc.threshold = 0.25,
                                 verbose = FALSE)
 
   # Step 2: Assign each cluster to best-matching celltype
-  cluster_assignments <- data.frame()
-
-  for (cluster_id in unique(loo_obj$seurat_clusters)) {
+  # FIXED: Use list collection instead of rbind loop
+  assignment_list <- list()
+  
+  cluster_ids <- unique(loo_obj$seurat_clusters)
+  
+  for (i in seq_along(cluster_ids)) {
+    cluster_id <- cluster_ids[i]
+    
     # Top markers for this cluster
     cluster_markers <- loo_markers %>%
       filter(cluster == cluster_id) %>%
@@ -38,17 +43,19 @@ transfer_labels <- function(loo_obj,
       }
     }
 
-    cluster_assignments <- rbind(cluster_assignments, data.frame(
+    # Store in list (avoids row name conflicts)
+    assignment_list[[i]] <- data.frame(
       cluster = cluster_id,
       assigned_celltype = best_match,
       jaccard_score = best_score,
       n_cells = sum(loo_obj$seurat_clusters == cluster_id),
       stringsAsFactors = FALSE
-    ))
+    )
   }
 
-  # FIX: Reset row names to avoid duplicate row.names error
-  rownames(cluster_assignments) <- NULL
+  # Bind all at once and set clean row names
+  cluster_assignments <- do.call(rbind, assignment_list)
+  rownames(cluster_assignments) <- as.character(1:nrow(cluster_assignments))
 
   cat("    Cluster assignments:\n")
   print(cluster_assignments[order(cluster_assignments$cluster),
@@ -95,4 +102,69 @@ transfer_labels <- function(loo_obj,
     obj = loo_obj,
     assignments = cluster_assignments
   ))
+}
+
+# instead of being in the test, putting here.  Just compiles lists from the previous output
+DEDA_results_compose <- function(celltypes_list) {
+  full_de_results <- list()
+  full_da_results <- list()
+  for (celltype in celltypes_list) {
+    for (comparison in comparisons_list) {
+      comp_name <- sprintf("%s_%s_vs_%s", celltype, comparison[1], comparison[2])
+
+      # Load DE
+      de_file <- file.path(project_export,
+                        sprintf("DiffExpress_results_pseudobulk_%s_%s_vs_%s.csv",
+                               celltype, comparison[1], comparison[2]))
+      if (file.exists(de_file)) {
+        full_de_results[[comp_name]] <- read.csv(de_file)
+        cat(sprintf("  ✓ DE: %s (%d genes)\n",
+	comp_name, nrow(full_de_results[[comp_name]])))
+      } else {
+        warning(sprintf("  ✗ Missing DE: %s\n", basename(de_file)))
+      }
+
+      # Load DA
+      da_file <- file.path(project_export,
+                        sprintf("DiffAccess_results_pseudobulk_%s_%s_vs_%s.csv",
+                               celltype, comparison[1], comparison[2]))
+      if (file.exists(da_file)) {
+        full_da_results[[comp_name]] <- read.csv(da_file)
+        cat(sprintf("  ✓ DA: %s (%d peaks)\n", comp_name,
+	    nrow(full_da_results[[comp_name]])))
+      } else {
+        warning(sprintf("  ✗ Missing DA: %s\n", basename(da_file)))
+      }
+    }
+  }
+  return(list(da_results = full_da_results, de_results = full_de_results))
+}
+
+#pulling this directly from run_pipeline2, though as soon as I do that it is out of sync.
+# given these all use the settings files after the objects, I should make the parameters 
+# all be default values, so I can call the functions with just the objects
+harmony_FMMN_cluster_task <- function(preharmony_obj) {
+	# doing the reassignment so the lines are exactly the same as run_pipeline2.R
+	merged_obj <- preharmony_obj
+	harmony_obj <- harmonize_both(
+	  merged_obj,
+	  random_seed = harmony_settings$random_seed,
+	  harmony_max_iter = harmony_settings$max_iter,
+	  harmony_project.dim = harmony_settings$project_dim,
+	  harmony_dims = harmony_settings$dims_use
+	)
+
+	dims <- cluster_settings$dims_min:cluster_settings$dims_max
+
+	clustered_obj <- FMMN_task(harmony_obj,
+                          dims = dims,
+                          knn = cluster_settings$knn)
+
+	clustered_obj <- cluster_data(clustered_obj,
+                             alg = cluster_settings$algorithm,
+                             res = cluster_settings$resolution,
+                             cluster_seed = cluster_settings$random_seed,
+                             singleton_handling = "discard",
+                             run_umap = TRUE)
+	return(clustered_obj)
 }

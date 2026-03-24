@@ -248,7 +248,8 @@ identify_all_celltypes <- function(all_markers,
                                    celltype_markers,
                                    min_markers = 2,
                                    min_score = 5,
-                                   verbose = TRUE) {
+                                   verbose = TRUE,
+				   print_conflicts = TRUE) {
   
   cat("\n=== Identifying cell types ===\n")
   cat(sprintf("Processing %d cell types...\n", length(celltype_markers)))
@@ -281,20 +282,19 @@ identify_all_celltypes <- function(all_markers,
     filter(n() > 1, !is.na(cluster)) %>%
     arrange(cluster, desc(score))
   
-  if (nrow(conflicts) > 0) {
-  cat("\n!!! WARNING: Conflicting assignments !!!\n")
-  cat("The following clusters match multiple cell types:\n")
+  if (nrow(conflicts) > 0 && print_conflicts) {  # ← Add check
+    cat("\n!!! WARNING: Conflicting assignments !!!\n")
+    cat("The following clusters match multiple cell types:\n")
 
-  # Convert to regular dataframe first
-  conflicts_to_print <- conflicts %>%
-    select(cluster, celltype, confidence, score) %>%
-    ungroup() %>%  # ← ADD THIS LINE
-    as.data.frame()
+    # Convert to regular dataframe first
+    conflicts_to_print <- conflicts %>%
+      ungroup() %>%
+      select(cluster, celltype, confidence, score) %>%
+      as.data.frame()
 
-  print(conflicts_to_print)
-  cat("\nReview these clusters manually.\n")
-}
-  
+    print(conflicts_to_print)
+    cat("\nReview these clusters manually.\n")
+  }
   return(list(
     assignments = assignments_df,
     all_scores = bind_rows(all_scores_list),

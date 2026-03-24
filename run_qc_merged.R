@@ -1,9 +1,18 @@
 source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
+init_project()
 #load object created at end of run_pipeline1.R
 merged_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
-init_project()
+
+# here in case you're restarting and already have these settings
+# set to TRUE then skip to where you were
+if (FALSE) {
+	pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
+	cluster_settings <- read_cluster_settings(cluster_settings_file)
+	celltype_settings <- read_celltype_settings(celltype_settings_file)
+	harmony_settings <- read_harmony_settings(harmony_settings_file)
+}
 
 # ============================================================================
 # PHASE 1: Clustering Parameter Selection
@@ -125,6 +134,7 @@ cat(sprintf("Result: %d clusters, %d singletons (%.2f%%)\n",
 
 # Save
 saveRDS(chosen_obj, file.path(rdsdir, "clustered_obj.rds"))
+# ISKIPPEDTOTHISLINE
 # chosen_obj <- readRDS(file.path(rdsdir, "clustered_obj.rds"))
 
 # ============================================================================
