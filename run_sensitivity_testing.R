@@ -40,6 +40,7 @@ overall_start <- Sys.time()
 
 for (i in seq_along(samples)) {
   sample_to_exclude <- samples[i]
+  sample_group <- unique(merged_obj$group[merged_obj$orig.ident == sample_to_exclude])
   cat(paste(rep("=", 40), collapse = ""), "\n")
   cat(sprintf("==Excluding: %s at Time: %s\n", sample_to_exclude, format(Sys.time(), "%X")))
   cat(" INFO: Subsetting, running harmony, FMMN, and clustering\n")
@@ -61,32 +62,16 @@ for (i in seq_along(samples)) {
   loo_obj <- subset(loo_obj, subset = celltype %in% celltypes_list)
   # Good to this line?
   # TODO: WIP, new DE/DA (below is just pulled from run_pipeline2.R, needs mods.
-  # Run Differential Expression (PSEUDO-BULK)
-  for (celltype in celltypes_list) {
-    for (comparison in comparisons_list) {
-      cat(sprintf("DE: %s - %s vs %s\n", celltype, comparison[1], comparison[2]))
-      run_pseudobulk_DE_and_export(
-        seurat_obj = obj_assigned,
-        celltype_col = "celltype",
-        celltype_value = celltype,
-        sample_col = "orig.ident",
-        group_col = "group",
-        ident.1 = comparison[1],
-        ident.2 = comparison[2],
-        output_prefix = file.path(project_export, "DiffExpress_results"),
-        min_cells_per_sample = 50
-      )
-    }
-  }
 
-  # Run Differential Accessibility (PSEUDO-BULK)
-  cat("\n=== Running Differential Accessibility (Pseudo-bulk) ===\n")
-  for (celltype in celltypes_list) {
-    for (comparison in comparisons_list) {
-      cat(sprintf("DA: %s - %s vs %s\n", celltype, comparison[1], comparison[2]))
-      run_pseudobulk_DA_and_export(seurat_obj = obj_assigned, celltype_col = "celltype",
-        celltype_value = celltype, sample_col = "orig.ident", group_col = "group",
-        ident.1 = comparison[1], ident.2 = comparison[2], min_cells_per_sample = 50,
-        output_prefix = file.path(project_export, "DiffAccess_results"))
-  }}
-
+  loo_de <- run_LOO_DEDA(loo_obj, celltypes_list, comparisons_list, assay = "DE")
+  loo_da <- run_LOO_DEDA(loo_obj, celltypes_list, comparisons_list, assay = "DA")
+  
+  de_comparison <- compare_LOO_to_full(loo_de, full_de_results, 
+                                        sample_to_exclude, sample_group)
+  da_comparison <- compare_LOO_to_full(loo_da, full_da_results,
+                                        sample_to_exclude, sample_group)
+  
+  loo_results[[sample_to_exclude]] <- list(de = de_comparison, da = da_comparison)
+}
+summary_de <- do.call(rbind, lapply(loo_results, `[[`, "de"))
+summary_da <- do.call(rbind, lapply(loo_results, `[[`, "da"))

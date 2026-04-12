@@ -142,7 +142,7 @@ DEDA_results_compose <- function(celltypes_list) {
 
 #pulling this directly from run_pipeline2, though as soon as I do that it is out of sync.
 # given these all use the settings files after the objects, I should make the parameters 
-# all be default values, so I can call the functions with just the objects
+# all be default values from settings, so I can call the functions with just the objects
 harmony_FMMN_cluster_task <- function(preharmony_obj) {
 	# doing the reassignment so the lines are exactly the same as run_pipeline2.R
 	merged_obj <- preharmony_obj
@@ -168,3 +168,13 @@ harmony_FMMN_cluster_task <- function(preharmony_obj) {
                              run_umap = TRUE)
 	return(clustered_obj)
 }
+
+# Runs DE or DA for all celltype/comparison combinations, returns named list
+run_LOO_DEDA <- function(loo_obj, celltypes_list, comparisons_list,
+                          assay = c("DE", "DA"),
+                          min_cells_per_sample = 50) {}
+
+# Compares one LOO result set against full result set, returns summary data.frame
+compare_LOO_to_full <- function(loo_results, full_results,
+                                 sample_excluded,
+                                 padj_threshold = 0.05) {}
