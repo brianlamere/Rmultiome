@@ -2,6 +2,8 @@ source("/projects1/opioid/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 init_project()
 
+source(file.path(Rmultiome_path, "sarah_func.R"))
+
 pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 cluster_settings <- read_cluster_settings(cluster_settings_file)
 celltype_settings <- read_celltype_settings(celltype_settings_file)
@@ -11,81 +13,8 @@ EnsDbAnnos <- loadannotations()
 
 obj_assigned <- readRDS(file.path(rdsdir, "annotated_obj_final.rds"))
 
-make_pseudobulk_RNA_for_scores <- function(
-    seurat_obj,
-    celltype_col = "celltype",
-    celltype_value = "Microglia_Macrophages",
-    sample_col = "orig.ident",
-    group_col = "group",
-    min_cells_per_sample = 50
-) {
-  cell_subset <- subset(
-    seurat_obj,
-    subset = !!as.name(celltype_col) == celltype_value
-  )
- 
-  DefaultAssay(cell_subset) <- "RNA"
- 
-  counts <- tryCatch(
-    GetAssayData(cell_subset, assay = "RNA", layer = "counts"),
-    error = function(e) GetAssayData(cell_subset, assay = "RNA", slot = "counts")
-  )
- 
-  sample_meta <- cell_subset@meta.data %>%
-    group_by(!!sym(sample_col)) %>%
-    summarize(
-      group = dplyr::first(!!sym(group_col)),
-      n_cells = n(),
-      .groups = "drop"
-    ) %>%
-    filter(n_cells >= min_cells_per_sample)
- 
-  pseudobulk_counts <- matrix(
-    0,
-    nrow = nrow(counts),
-    ncol = nrow(sample_meta),
-    dimnames = list(rownames(counts), sample_meta[[sample_col]])
-  )
- 
-  for (sample in sample_meta[[sample_col]]) {
-    sample_cells <- colnames(cell_subset)[
-      cell_subset@meta.data[[sample_col]] == sample
-    ]
-    pseudobulk_counts[, sample] <- Matrix::rowSums(
-      counts[, sample_cells, drop = FALSE]
-    )
-  }
- 
-  # Keep expressed genes
-  keep <- rowSums(pseudobulk_counts > 0) > 0
-  pseudobulk_counts <- pseudobulk_counts[keep, ]
- 
-  coldata <- data.frame(
-    sample = sample_meta[[sample_col]],
-    group = factor(sample_meta$group),
-    n_cells = sample_meta$n_cells,
-    row.names = sample_meta[[sample_col]]
-  )
- 
-  dds <- DESeqDataSetFromMatrix(
-    countData = round(pseudobulk_counts),
-    colData = coldata,
-    design = ~ group
-  )
- 
-  dds <- estimateSizeFactors(dds)
- 
-  norm_counts <- counts(dds, normalized = TRUE)
-  vst_mat <- assay(vst(dds, blind = TRUE))
- 
-  list(
-    pseudobulk_counts = pseudobulk_counts,
-    dds = dds,
-    norm_counts = norm_counts,
-    vst_mat = vst_mat,
-    sample_meta = sample_meta
-  )
-}
+DefaultAssay(obj_assigned) <- "RNA"
+obj_assigned <- JoinLayers(obj_assigned)
 
 pb <- make_pseudobulk_RNA_for_scores(
   seurat_obj = obj_assigned,
