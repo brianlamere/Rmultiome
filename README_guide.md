@@ -1,19 +1,29 @@
 # Guide to Using Rmultiome
 ## Initial Setup
 1. Create a directory for the project.
-2. Inside the directory create a rawdata subdirectory, and inside this directory should be all the sample directories with the cellranger output. Follows are the only files this tool will actually be using from the cellranger output:
+2. Run cellranger-arc as needed for it to work; an example of how we ran it is (note you do not need bam files for this tool, though if you need them for some other task then do not omit their creation):
 ```
-/projects/projectdir/sample1/atac_fragments.tsv.gz
-/projects/projectdir/sample1/atac_fragments.tsv.gz.tbi
-/projects/projectdir/sample1/filtered_feature_bc_matrix.h5
+cellranger-arc count --id=${samplenum}_HXB2 --reference=/projects1/references/CellRanger-GRCh38_HXB2/CellRanger-GRCh38_HXB2 --libraries=/projects1/newmulti/libraries/${samplenum}libraries.csv --localcores=16 --localmem=128 --create-bam=false
 ```
-3. clone the Rmultiome code repo:  
+3. The "--id" flag for cellranger-arc will cause directories of that name to be created; inside those directories will be numerous files, and 3 directories.  What we need is in the "outs" directory.
+4. Create a "cra_out" directory in the project directory.
+5. Create symlinks from the various cellranger-arc "outs" directories as the source, to the "cra_out" directory in your project directory.  Create a link that is the same as the sample names (such as with sample1 example, below):
+```
+/projects1/projectdir $ ln -s ../cellranger_out/sample1_HXB2/outs/ cra_out/sample1
+```
+6. Follows are the only files this tool will actually be using from the cellranger output:
+```
+/projects/projectdir/cra_out/sample1/atac_fragments.tsv.gz
+/projects/projectdir/cra_out/sample1/atac_fragments.tsv.gz.tbi
+/projects/projectdir/cra_out/sample1/filtered_feature_bc_matrix.h5
+```
+7. clone the Rmultiome code repo:  
 `git clone https://github.com/brianlamere/Rmultiome`
-4. Rstudio won't want to go to a location outside of your home directory, because they don't like security, projects worked on by more than one person, projects that survive past one particular person, etc.  The easy way around this is to make a symbolic link in your home directory, to the project directory.  From the command line, type a command such as:
+8. Rstudio won't want to go to a location outside of your home directory, because they don't like security, projects worked on by more than one person, projects that survive past one particular person, etc.  The easy way around this is to make a symbolic link in your home directory, to the project directory.  From the command line, type a command such as:
 `ln -s /projects ~/projects-link`
 "ln" is the link tool, the flag "-s" instructs ln to make a symbolic link.  From there it is source, then target; source is what you are linking to, target is where the link will exist.  The ~ in the example target is a shell option that simply stands for whatever your home directory is, and works on nearly all UNIX variants including OSX.
-5. I won't go much into rstudio usage here, but start rstudio, select to create a new project, browse to that link you created above, then from there select the project directory you used.  In my use I have a larger "/projects" directory that has all my projects in it; you might instead have linked directly to your project.
-6. Once rstudio has started, in your file browser should be the "rawdata" and "Rmultiome" folders.  Open the Rmultiome/system_settings.R file, and modify the early line:  project_base_dir should be set to where your project is located (the folder that has rawdata and Rmultiome).  Modify to your project path location.
+9. I won't go much into rstudio usage here, but start rstudio, select to create a new project, browse to that link you created above, then from there select the project directory you used.  In my use I have a larger "/projects" directory that has all my projects in it; you might instead have linked directly to your project.
+10. Once rstudio has started, in your file browser should be the "rawdata" and "Rmultiome" folders.  Open the Rmultiome/system_settings.R file, and modify the early line:  project_base_dir should be set to where your project is located (the folder that has rawdata and Rmultiome).  Modify to your project path location.
 
 ## QC Phase 1: standard/1 dimensional trimming
 1. Open the run_qc.R file
