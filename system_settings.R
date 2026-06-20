@@ -2,7 +2,7 @@
 # The settings in this file are very specific to installation and project!
 
 # Working directory that has everything in it.
-project_base_dir <- "/projects1/opioid"
+project_base_dir <- "/projects1/opioid2"
 
 # if you downloaded a cellmarker csv from here:
 # http://bio-bigdata.hrbmu.edu.cn/CellMarker/CellMarkerSearch.jsp?index_species=Human&index_tissue=Brain
@@ -14,7 +14,7 @@ CellMarker_file <- file.path(project_base_dir, "references/Cellmarker_Human_Brai
 ##################################################################################
 # Main 10X multiome h5 file (RNA + ATAC peaks) from CellRanger ARC
 # This file is still used even when CellBender is enabled, because it contains Peaks.
-# expected at:  paste(rawdatadir, samplename, h5filename, sep = "/")
+# expected at:  paste(cra_outdir, samplename, h5filename, sep = "/")
 h5filename <- "filtered_feature_bc_matrix.h5"
 
 # CellBender-corrected RNA file (per-sample)
@@ -27,8 +27,8 @@ atacfilename <- "atac_fragments.tsv.gz"
 # Project source code directory
 Rmultiome_path <- file.path(project_base_dir, "Rmultiome")
 
-# Project raw data directory
-rawdatadir <- file.path(project_base_dir, "rawdata")
+# Project cellranger-arc output directory
+cra_outdir <- file.path(project_base_dir, "cra_out")
 
 # Project cellbender data directory
 cb_datadir <- file.path(project_base_dir, "cb_data")
