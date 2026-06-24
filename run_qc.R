@@ -1,4 +1,4 @@
-source("/projects1/newmulti/Rmultiome/system_settings.R")
+source("/projects1/opioid2/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #Step 1-1: set up your space and list the options for sample names
@@ -21,8 +21,7 @@ list.files(path = cb_datadir)
 # if you are using cellbender.  We will not autopopulate this because you need to know
 # what samples you want to include, but it needs to be a subset or full set of cra_outdir.
 # note if cb_datadir isn't a subset of exact names from cr-arc out dir, things will break later
-samplelist <- c("LG05", "LG08", "LG22", "LG23", "LG25", "LG26",
-                "LG300", "LG301", "LG31", "LG33", "LG38")
+samplelist <- c("LG22", "LG26", "LG300", "LG301", "LG31", "LG38")
 
 # Initialize pipeline1 settings
 pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
@@ -30,12 +29,14 @@ pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 EnsDbAnnos <- loadannotations()
 
 #step 1-2: pick your sample name, from the listing of files in cra_outdir
-mysample <- "LG05"
+mysample <- "LG38"
 
 # Step 1-3: Create base QC object
 qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
 
 # Step 1-4: Generate QC plots (before trimming)
+#library(httpgd)
+#hgd(port=8777, token=FALSE)
 QCVlnA(qc_obj)
 QCVlnR(qc_obj)
 QCDensity_ATAC(qc_obj)

@@ -1,7 +1,7 @@
 #Functions that are part of premerge processing.  Nothing here should be steps for a merged object
 
 #we're using v86, though v114 is available it is from this month.
-loadannotations <- function(ensdb = EnsDb.Hsapiens.v86) {
+loadannotations <- function(ensdb = EnsDb.Hsapiens.v116()) {
   annotation <- GetGRangesFromEnsDb(ensdb = ensdb)
   seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
   return(annotation)
