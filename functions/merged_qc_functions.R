@@ -172,10 +172,6 @@ run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
           n_singletons = singleton_count
         )
 
-        # Display plot on workspace 9
-        maybe_new_device_workspace(width = 8, height = 6, workspace = 9,
-                                   title = "R_ParamSweep")
-
         plot_title <- sprintf("dims=%s, knn=%d, res=%.3f\n%d clusters (%d singletons)",
                              dims_str, knn, res, cluster_count, singleton_count)
 

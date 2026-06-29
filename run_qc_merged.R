@@ -21,10 +21,8 @@ if (FALSE) {
 # === STEP 1: Check for technical bias in PCs ===
 pc_check <- check_pc_technical_bias(merged_obj, n_pcs = 30)
 
-maybe_new_device(width = 10, height = 8)
 print(pc_check$heatmap)
 
-maybe_new_device(width = 12, height = 6)
 print(pc_check$lineplot)
 
 # Decision: Exclude PC1 based on high technical correlation
@@ -56,12 +54,9 @@ saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
 
 # === STEP 4: Find elbow (informative but not prescriptive) ===
 # Note: Elbow point is informative but not necessarily optimal for clustering.
-maybe_new_device(width = 10, height = 6)
 print(findElbow(harmony_obj))
 
-#BELOW IS VERY INTERESTING, DETERMINE WHAT TOP CELLS IN THE TRANSITIONING GROUPS ARE
 # === STEP 5: Run parameter sweep with metrics ===
-# I like 1:30knn40res0.16, 1:40k40r.160 
 sweep_results <- run_parameter_sweep_plots(
   seurat_obj = harmony_obj,
   dims_range = list(c(1:30),c(1:40)),
@@ -129,7 +124,6 @@ cat(sprintf("Result: %d clusters, %d singletons (%.2f%%)\n",
            100 * n_singletons / ncol(chosen_obj)))
 
 # Quick viz
-#maybe_new_device(width = 10, height = 8)
 #print(DimPlot(chosen_obj, reduction = "wnn.umap", label = TRUE, raster = FALSE))
 
 # Save

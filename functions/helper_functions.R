@@ -178,7 +178,7 @@ analysis_date <- "%s"
       random_seed,
       use_cellbender,
       use_scdblfinder,
-      doublet_rate_pct,
+      doublet_rate_per_1000,
       doublet_rate_sd,
       project_name,
       genome_build,
@@ -606,6 +606,7 @@ sample names.")
   return(invisible(combined))
 }
 
+#TODO:  strong revisit of this, for httpgd preference except in parameter sweeps
 #' Open new graphics device if not in RStudio
 #' @param width Window width in inches (default 10)
 #' @param height Window height in inches (default 8)

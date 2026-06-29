@@ -1,7 +1,7 @@
 #Functions that are part of premerge processing.  Nothing here should be steps for a merged object
 
 #we're using v86, though v114 is available it is from this month.
-loadannotations <- function(ensdb = EnsDb.Hsapiens.v86) {
+loadannotations <- function(ensdb = EnsDb.Hsapiens.v116()) {
   annotation <- GetGRangesFromEnsDb(ensdb = ensdb)
   seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
   return(annotation)
@@ -220,8 +220,8 @@ base_object <- function(samplename, cb_report = c("write", "display", "none")) {
   cb_report <- match.arg(cb_report)
   
   # Always read the multiome H5 (needed for ATAC, and for RNA if not using CellBender)
-  fullrna <- paste(rawdatadir, samplename, h5filename, sep = "/")
-  fullatac <- paste(rawdatadir, samplename, atacfilename, sep = "/")
+  fullrna <- paste(cra_outdir, samplename, h5filename, sep = "/")
+  fullatac <- paste(cra_outdir, samplename, atacfilename, sep = "/")
   
   counts <- Read10X_h5(filename = fullrna)
   rna_counts_orig <- counts$`Gene Expression`
@@ -331,7 +331,7 @@ run_amulet_detection <- function(sample,
 
   # Infer fragment file path if not provided
   if (is.null(fragments_file)) {
-    fragments_file <- file.path(rawdatadir, sample, atacfilename)
+    fragments_file <- file.path(cra_outdir, sample, atacfilename)
   }
 
   if (!file.exists(fragments_file)) {
