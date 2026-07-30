@@ -19,6 +19,7 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 standard_chroms <- paste0("chr", c(1:22, "X", "Y"))
 
+init_project() # pull in various project-wide settings
 pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 
 samplelist <- pipeline1_settings$sample
@@ -35,7 +36,6 @@ for (sample in samplelist) {
     base_obj <- base_object(sample,cb_report="write")
     print("Adding chromosome mapping information to ATAC assay.")
     base_obj <- chromosome_mapping(base_obj, rna_annos = EnsDbAnnos)
-    #base_obj <- update_provenance(base_obj, "raw_import")
     saveRDS(base_obj, base_path)
   } else {
     print("Reading previous base file from vault\n")
@@ -52,7 +52,6 @@ for (sample in samplelist) {
     trim_obj <- TSSEnrichment(trim_obj)
     print("Trimming based on QC")
     trim_obj <- trimSample(trim_obj)
-    #trim_obj <- update_provenance(trim_obj, "trim_data")
     saveRDS(trim_obj, trimmed_path)
   } else {
     print("Reading previous trim file from vault\n")
@@ -75,62 +74,51 @@ for (sample in samplelist) {
     
   # STEP 4: Doublet Removal
   doublet_stats <- NULL  # Initialize
-
   if (use_scdblfinder) {
     doublet_path <- get_rds_path(sample, "doublet_removed")
     stats_path <- file.path(tmpfiledir, paste0(sample, "_doublet_stats.rds"))
-
     if (!file.exists(doublet_path)) {
       print("Removing doublets with scDblFinder.")
       result <- doubletRemoveSample(kde_obj, qc_report = FALSE)
       doublet_obj <- result$obj
       doublet_stats <- result$stats
-
       saveRDS(doublet_obj, doublet_path)
       saveRDS(doublet_stats, stats_path)  # Save stats for reporting
     } else {
       print("Reading previous doublet-filtered file from vault")
       doublet_obj <- readRDS(doublet_path)
-
-      #  Try to load stats if available
       if (file.exists(stats_path)) {
         doublet_stats <- readRDS(stats_path)
       }
     }
-
     preRNA_input <- doublet_obj
   } else {
     preRNA_input <- kde_obj
   }
-
   # STEP 5: preRNA
   preRNA_path <- get_rds_path(sample, "preRNA")
   if (!file.exists(preRNA_path)) {
     preMerge_obj <- preRNA_input
     DefaultAssay(preMerge_obj) <- "RNA"
     preMerge_obj <- NormalizeData(preMerge_obj)
-    preMerge_obj <- FindVariableFeatures(preMerge_obj, selection.method = "vst",
-                                nfeatures = 2500)
+    preMerge_obj <- FindVariableFeatures(preMerge_obj, selection.method = "vst", nfeatures = 2500)
     saveRDS(preMerge_obj, preRNA_path)
   } else {
     print("Reading previous preRNA file from vault\n")
     preMergeobj <- readRDS(preRNA_path)
   }
-  
   # STEP 6: preATAC/pipeline1
   pipeline1_path <- get_rds_path(sample, "pipeline1")
   if (!file.exists(pipeline1_path)) {
     DefaultAssay(preMerge_obj) <- "ATAC"
     preMerge_obj <- RunTFIDF(preMerge_obj)
     preMerge_obj <- FindTopFeatures(preMerge_obj)
-    #obj <- update_provenance(obj, "pre-merge_atac")
     saveRDS(preMerge_obj, pipeline1_path)
   } else {
     # why are we loading this if already present?  it isn't used prior to loop end
     print("Files already present for this sample for pipeline1\n")
     preMerge_obj <- readRDS(pipeline1_path)
   }
-  
   # Step 7: Report and cleanup
   generate_sample_report(
     sample = sample,
@@ -142,8 +130,7 @@ for (sample in samplelist) {
     pipeline1_settings = pipeline1_settings,
     use_scdblfinder = use_scdblfinder,
     doublet_stats = doublet_stats,
-    report_dir = project_export
-  )
+    report_dir = project_export)
   cat(sprintf("Sample %s completed successfully.\n", sample))
 }
 #############copy TO here, to run in an IDE as a full block
