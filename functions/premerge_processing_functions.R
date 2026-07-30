@@ -1,7 +1,7 @@
 #Functions that are part of premerge processing.  Nothing here should be steps for a merged object
 
 #we're using v86, though v114 is available it is from this month.
-loadannotations <- function(ensdb = EnsDb.Hsapiens.v116()) {
+loadannotations <- function(ensdb = EnsDb.Hsapiens.v116) {
   annotation <- GetGRangesFromEnsDb(ensdb = ensdb)
   seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
   return(annotation)
@@ -475,7 +475,183 @@ merge_sample_objects <- function(samplelist, suffix = "pipeline1", project_name 
   invisible(merged_seurat)
 }
                                                 
+#' Remove doublets using scDblFinder
+#'
+#' Detects and removes doublets from a Seurat object using scDblFinder.
+#' Looks up expected doublet rate from pipeline1_settings dataframe.
+#'
+#' @param seurat_obj A Seurat object (with @project.name set to sample name)
+#' @param pipeline1_settings (optional) Data frame with sample-specific settings
+#'        If not supplied, will look for `pipeline1_settings` in global environment
+#' @param qc_report If TRUE, prints detailed output and plots (for run_qc.R)
+#'        If FALSE, minimal output (for run_pipeline1.R)
+#' @return List with:
+#'   - obj: Filtered Seurat object containing only singlets
+#'   - stats: List of doublet detection statistics for reporting
+#' @export
+doubletRemoveSample <- function(seurat_obj, pipeline1_settings = NULL, qc_report = FALSE) {
 
+  # Get sample name from Seurat object
+  sample_name <- seurat_obj@project.name
 
+  # Fetch pipeline1_settings if not provided
+  if (is.null(pipeline1_settings)) {
+    if (!exists("pipeline1_settings", envir = .GlobalEnv)) {
+      stop("pipeline1_settings not found in global environment, and not provided as argument.")
+    }
+    pipeline1_settings <- get("pipeline1_settings", envir = .GlobalEnv)
+  }
 
-  
+  # Look up parameters for this sample
+  params <- pipeline1_settings[pipeline1_settings$sample == sample_name, ]
+  if (nrow(params) == 0) {
+    stop(sprintf("No doublet settings found for sample '%s'.", sample_name))
+  }
+
+  # Extract expected doublet rate
+  expected_dbr <- params$expected_dbr
+  if (is.na(expected_dbr)) {
+    stop(sprintf("expected_dbr not set for sample '%s'. Run QC first to calculate this value.",
+                sample_name))
+  }
+
+  # Get global settings
+  if (!exists("random_seed", envir = .GlobalEnv)) {
+    stop("random_seed not found. Source project_settings.R first.")
+  }
+  if (!exists("doublet_rate_sd", envir = .GlobalEnv)) {
+    stop("doublet_rate_sd not found. Source project_settings.R first.")
+  }
+
+  random_seed <- get("random_seed", envir = .GlobalEnv)
+  doublet_rate_sd <- get("doublet_rate_sd", envir = .GlobalEnv)
+
+  # Calculate parameters
+  n_cells <- ncol(seurat_obj)
+  dbr_rate <- expected_dbr
+  est_doubs <- (n_cells * dbr_rate / 100)
+
+  if (qc_report) {
+    cat(sprintf("\n=== scDblFinder: %s ===\n", sample_name))
+    cat(sprintf("Cells before doublet removal: %d\n", n_cells))
+    cat(sprintf("Expected doublets: %.1f (%.2f%% of %.3f cells)\n",
+    est_doubs, dbr_rate, n_cells))
+    cat(sprintf("Running scDblFinder with dbr=%.4f, dbr.sd=%.3f\n",
+        doublet_rate_per_1000, doublet_rate_sd))
+  }
+
+  # Convert to SingleCellExperiment (using Seurat's conversion method)
+  sce <- as.SingleCellExperiment(seurat_obj, assay = "RNA")
+
+  # Set seed for reproducibility
+  set.seed(random_seed)
+
+  # Run scDblFinder
+  sce <- scDblFinder::scDblFinder(
+    sce,
+    clusters = FALSE,
+    dbr = (dbr_rate / 100),
+    dbr.sd = doublet_rate_sd,
+    verbose = qc_report
+  )
+
+  # Extract results
+  doublet_class <- sce$scDblFinder.class
+  doublet_score <- sce$scDblFinder.score
+
+  n_doublets <- sum(doublet_class == "doublet")
+  n_singlets <- sum(doublet_class == "singlet")
+  pct_doublets <- 100 * n_doublets / n_cells
+
+  # Calculate statistics
+  threshold <- min(doublet_score[doublet_class == "doublet"])
+  singlet_score_median <- median(doublet_score[doublet_class == "singlet"])
+  doublet_score_median <- median(doublet_score[doublet_class == "doublet"])
+
+  # Report results
+  if (qc_report) {
+    cat(sprintf("\n=== Results ===\n"))
+    cat(sprintf("Singlets: %d (%.1f%%)\n", n_singlets, 100*n_singlets/n_cells))
+    cat(sprintf("Doublets: %d (%.1f%%)\n", n_doublets, pct_doublets))
+    cat(sprintf("Expected: %.1f (%.2f%%)\n", est_doubs, dbr_rate))
+    cat(sprintf("Difference: %+.1f doublets (%+.2f%%)\n\n",
+               n_doublets - est_doubs, pct_doublets - dbr_rate))
+
+    cat("Doublet score summary:\n")
+    print(summary(doublet_score))
+    cat("\nSinglet scores:\n")
+    print(summary(doublet_score[doublet_class == "singlet"]))
+    cat("Doublet scores:\n")
+    print(summary(doublet_score[doublet_class == "doublet"]))
+
+    # Two-panel visualization
+    par(mfrow = c(1, 2))
+
+    # Panel 1: Full distribution
+    hist(doublet_score, breaks = 50,
+         main = paste("All Scores -", sample_name),
+         xlab = "scDblFinder Score",
+         ylab = "Frequency",
+         col = "lightblue")
+    abline(v = threshold, col = "red", lwd = 2, lty = 2)
+    legend("topright",
+           legend = sprintf("Threshold: %.3f", threshold),
+           col = "red", lty = 2, lwd = 2, cex = 0.8)
+
+    # Panel 2: Doublet region zoomed (0.7-1.0)
+    doublet_region <- doublet_score[doublet_score > 0.7]
+    if (length(doublet_region) > 0) {
+      hist(doublet_region, breaks = 30,
+           main = "Doublet Region (0.7-1.0)",
+           xlab = "scDblFinder Score",
+           ylab = "Frequency",
+           col = "salmon",
+           xlim = c(0.7, 1.0))
+      abline(v = threshold, col = "red", lwd = 2, lty = 2)
+      abline(v = doublet_score_median, col = "darkred", lwd = 2, lty = 3)
+      legend("topleft",
+             legend = c(sprintf("Threshold: %.3f", threshold),
+                       sprintf("Median: %.3f", doublet_score_median)),
+             col = c("red", "darkred"),
+             lty = c(2, 3),
+             lwd = 2,
+             cex = 0.7)
+      text(0.85, max(hist(doublet_region, breaks = 30, plot = FALSE)$counts) * 0.9,
+           sprintf("%d doublets\n(%.1f%%)", n_doublets, pct_doublets),
+           cex = 0.9)
+    }
+
+    par(mfrow = c(1, 1))
+
+    cat("\nFiltering to singlets only...\n")
+  }
+
+  # Filter Seurat object to singlets only
+  singlets_idx <- which(doublet_class == "singlet")
+  filtered_obj <- seurat_obj[, singlets_idx]
+
+  if (qc_report) {
+    cat(sprintf("Cells after doublet removal: %d\n", ncol(filtered_obj)))
+  } else {
+    cat(sprintf("Removed %d doublets from %s, %d cells remaining\n",
+               n_doublets, sample_name, ncol(filtered_obj)))
+  }
+
+  # Compile statistics for reporting
+  doublet_stats <- list(
+    n_cells_before = n_cells,
+    expected_dbr = expected_dbr,
+    n_doublets = n_doublets,
+    n_singlets = n_singlets,
+    pct_doublets = pct_doublets,
+    threshold = threshold,
+    singlet_score_median = singlet_score_median,
+    doublet_score_median = doublet_score_median
+  )
+
+  # Return both the filtered object and statistics
+  return(list(
+    obj = filtered_obj,
+    stats = doublet_stats
+  ))
+}

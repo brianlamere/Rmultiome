@@ -4,14 +4,16 @@ source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 #Step 1-1: set up your space and list the options for sample names
 init_project(
   random_seed = 42,
-  use_cellbender = FALSE,
+  use_cellbender = TRUE,
   use_scdblfinder = TRUE,
-  doublet_rate_per_1000 = 8.0,
+  doublet_rate_per_1000 = 0.8,
   doublet_rate_sd = 0.015,
   project_name = "opioid_hiv_multiome",
   genome_build = "hg38"
 )
 # init_project() # if resuming
+
+hgd(port=8777, token=FALSE)
 
 # the contents of the below directories will entirely dictate what samples can be
 # run through this pipeline.
@@ -29,14 +31,14 @@ pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 EnsDbAnnos <- loadannotations()
 
 #step 1-2: pick your sample name, from the listing of files in cra_outdir
-mysample <- "LG38"
+mysample <- "LG31"
 
 # Step 1-3: Create base QC object
 qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
 
+ncol(qc_obj[["ATAC"]])
+
 # Step 1-4: Generate QC plots (before trimming)
-#library(httpgd)
-#hgd(port=8777, token=FALSE)
 QCVlnA(qc_obj)
 QCVlnR(qc_obj)
 QCDensity_ATAC(qc_obj)
@@ -47,19 +49,19 @@ QCDensity_RNA(qc_obj)
 my_trimming_settings <- list(
   sample = mysample,
   # ATAC counts
-  min_nCount_ATAC = 1200,
-  max_nCount_ATAC = 40000,
+  min_nCount_ATAC = 200,
+  max_nCount_ATAC = 10000,
   # RNA counts
-  min_nCount_RNA = 200,
-  max_nCount_RNA = 30000,
+  min_nCount_RNA = 125,
+  max_nCount_RNA = 3000,
   # Nucleosome signal (nss)
-  min_nss = 0.2,
-  max_nss = 1.5,
+  min_nss = 0.1,
+  max_nss = 1.4,
   # % mitochondrial
-  max_percentMT = 8,
+  max_percentMT = 30,
   # TSS enrichment
-  min_TSS = 2.5, # was 2.5
-  max_TSS = 9  # was 9
+  min_TSS = .75, # 
+  max_TSS = 7.5  # 
 )
 
 # Step 1-6: Apply trimming.  trimSample reads from trimming_settings and to ensure
@@ -92,8 +94,8 @@ saveRDS(pipeline1_settings, pipeline1_settings_file)
 
 my_kde_settings <- list(
   sample = mysample,
-  atac_percentile = 0.98,
-  rna_percentile = 0.98,
+  atac_percentile = 0.965,
+  rna_percentile = 0.965,
   combine_method = "intersection"
 )
 
@@ -118,19 +120,22 @@ cat("\n=== Applying KDE Trimming ===\n")
 kde_obj <- kdeTrimSample(trimmed_obj, qc_report = TRUE)
 
 ######Step 3: scDblFinder
-# Record cell count after KDE (for doublet rate calculation)
 n_cells <- ncol(kde_obj)
 cat(sprintf("Cells after KDE trim: %d\n", n_cells))
 
 # Calculate expected doublet rate for this sample
-expected_dbr <- (n_cells / 1000) * (doublet_rate_pct / 10) * (n_cells / 100)
+# doublet rate is based on physical cells captured, so use pre-QC
+n_true_cells <- ncol(qc_obj)
+expected_dbr <- ((n_true_cells / 1000) * doublet_rate_per_1000)
+#example: if you have need to alter n_cells due to cellbender, etc, do so like such
+#expected_dbr <- ((56664 / 1000) * (doublet_rate_per_1000))
 cat(sprintf("Expected doublets: %.1f (%.2f%% of %d cells)\n",
-           expected_dbr, doublet_rate_pct, n_cells))
+           (n_cells * expected_dbr / 100), expected_dbr, n_cells))
 
 # Store in pipeline1_settings
 my_doublet_settings <- list(
   sample = mysample,
-  n_cells_after_kde = n_cells,
+  n_cells_scdbl = n_cells,
   expected_dbr = expected_dbr
 )
 
@@ -154,7 +159,7 @@ if (use_scdblfinder) {
 
 ######step 5: start almost everything over
 #protect yourself from stepping on yourself
-rm(mysample,qc_obj,my_trimming_settings,trimmed_obj,my_kde_settings,my_doublet_settings,
+rm(mysample,qc_obj,trimmed_obj,my_kde_settings,my_doublet_settings,
  n_cells, expected_dbr, doublet_obj)
 #Stop at this point, then repeat steps 1-2 to 5 for each sample, starting by
 # changing the "mysample" setting and looping back to here
