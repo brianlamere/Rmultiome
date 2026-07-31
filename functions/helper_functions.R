@@ -114,10 +114,16 @@ init_project <- function(random_seed = 42,
                         doublet_rate_per_1000 = 8.0,
                         doublet_rate_sd = 0.015,
                         project_name = "multiome_project",
+			analysis_version = "1.0.1a",
+			tissuei_type,
                         genome_build = "hg38") {
 
   cat("\n=== Initializing Project ===\n")
 
+  #TODO:  list of supported cell types, return hard error if "tissue" is not
+  # in said list.  Supply no default for tissue.
+  #TODO:  do something with genome_build or similar; have a list of supported
+  # genome references, and use this setting to then select which is used.
   # Require system_settings
   if (!exists("project_export")) {
     stop("Source system_settings.R first!")
@@ -166,8 +172,8 @@ doublet_rate_sd <- %.3f        # Uncertainty (0.015 = confident, 1.0 = use miscl
 project_name <- "%s"
 genome_build <- "%s"
 species <- "Homo sapiens"
-tissue <- "brain"  # Edit as appropriate
-analysis_version <- "1.0.0"
+tissue_type <- "%s"
+analysis_version <- "%s"
 analysis_date <- "%s"
 
 # ====================================================================
