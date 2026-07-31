@@ -1,9 +1,9 @@
-source("/projects1/opioid/Rmultiome/system_settings.R")
+source("/projects1/opioid2/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 init_project()
 #load object created at end of run_pipeline1.R
-merged_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
+preharmony_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
 
 # here in case you're restarting and already have these settings
 # set to TRUE then skip to where you were
@@ -19,8 +19,9 @@ if (FALSE) {
 # ============================================================================
 
 # === STEP 1: Check for technical bias in PCs ===
-pc_check <- check_pc_technical_bias(merged_obj, n_pcs = 30)
+pc_check <- check_pc_technical_bias(preharmony_obj, n_pcs = 50)
 
+hgd(port=8777, token=FALSE)
 print(pc_check$heatmap)
 
 print(pc_check$lineplot)
@@ -41,7 +42,7 @@ saveRDS(harmony_settings, harmony_settings_file)
 
 # === STEP 3: Run Harmony for parameter sweep ===
 harmony_obj <- harmonize_both(
-  merged_obj,
+  preharmony_obj,
   random_seed = random_seed,
   harmony_max_iter = harmony_settings$max_iter,
   harmony_project.dim = harmony_settings$project_dim,

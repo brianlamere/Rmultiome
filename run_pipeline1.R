@@ -135,17 +135,17 @@ for (sample in samplelist) {
 }
 #############copy TO here, to run in an IDE as a full block
 
-merged_data <- merge_sample_objects(samplelist)
+merged_obj <- merge_sample_objects(samplelist)
 
-saveRDS(merged_data, file.path(rdsdir,"merged_samples.rds"))
-preharmony <- merged_data
+saveRDS(merged_obj, file.path(rdsdir,"merged_samples.rds"))
+preharmony <- merged_obj
 
 #post-merge RNA modality
-preharmony <- post_merge_rna(preharmony)
+preharmony_obj <- post_merge_rna(merged_obj)
 
 #post-merge ATAC modality
-preharmony <- post_merge_atac(preharmony)
+preharmony_obj <- post_merge_atac(preharmony_obj)
 
-saveRDS(preharmony, file.path(rdsdir,"merged_preharmony.Rds"))
+saveRDS(preharmony_bj, file.path(rdsdir,"merged_preharmony.Rds"))
 
 cat("Now returning to QC processes.\n")

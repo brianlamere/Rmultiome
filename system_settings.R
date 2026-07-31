@@ -7,7 +7,8 @@ project_base_dir <- "/projects1/opioid2"
 # if you downloaded a cellmarker csv from here:
 # http://bio-bigdata.hrbmu.edu.cn/CellMarker/CellMarkerSearch.jsp?index_species=Human&index_tissue=Brain
 # define location below
-CellMarker_file <- file.path(project_base_dir, "references/Cellmarker_Human_Brain.csv")
+# adding note 31July2026: I seem to have abandoned this method, commenting out for now
+# CellMarker_file <- file.path(project_base_dir, "references/Cellmarker_Human_Brain.csv")
 
 ##################################################################################
 # If following guide precisely, nothing below to end of file would need to change.

@@ -114,19 +114,27 @@ init_project <- function(random_seed = 42,
                         doublet_rate_per_1000 = 8.0,
                         doublet_rate_sd = 0.015,
                         project_name = "multiome_project",
-			analysis_version = "1.0.1a",
-			tissuei_type,
+			analysis_version = "1.1.0a",
+			species = "Homo sapiens",
+			tissue_type,
                         genome_build = "hg38") {
 
   cat("\n=== Initializing Project ===\n")
 
-  #TODO:  list of supported cell types, return hard error if "tissue" is not
-  # in said list.  Supply no default for tissue.
   #TODO:  do something with genome_build or similar; have a list of supported
   # genome references, and use this setting to then select which is used.
   # Require system_settings
   if (!exists("project_export")) {
     stop("Source system_settings.R first!")
+  }
+
+  tissue_type_lc <- tolower(trimws(tissue_type))
+  if (!tissue_type_lc %in% names(TISSUE_MARKER_FUNCTIONS)) {
+    stop(sprintf(
+      "Unsupported tissue_type: '%s'. Supported: %s",
+      tissue_type,
+      paste(names(TISSUE_MARKER_FUNCTIONS), collapse = ", ")
+    ))
   }
 
   # Create directories
@@ -171,7 +179,7 @@ doublet_rate_sd <- %.3f        # Uncertainty (0.015 = confident, 1.0 = use miscl
 # === Project metadata ===
 project_name <- "%s"
 genome_build <- "%s"
-species <- "Homo sapiens"
+species <- "%s"
 tissue_type <- "%s"
 analysis_version <- "%s"
 analysis_date <- "%s"
@@ -188,6 +196,9 @@ analysis_date <- "%s"
       doublet_rate_sd,
       project_name,
       genome_build,
+      species,
+      tissue_type,
+      analysis_version,
       Sys.Date()
     )
 
@@ -399,4 +410,41 @@ get_params <- function(
   if (nrow(params) == 0) {
     stop(sprintf("No KDE settings found for sample '%s'.", sample_name))
   }
+}
+
+
+#' Load the consolidated marker set for the current project's tissue type.
+#'
+#' Reads `tissue_type` from the global environment (set by init_project via
+#' project_settings.R) and dispatches to the appropriate function in
+#' functions/Consolidated_Markers.R.  Returns a list with two elements:
+#'   $reference_table : data.frame, one row per marker gene
+#'   $marker_lists    : named list of character vectors for identify_all_celltypes()
+#'
+#' Usage in run_qc_merged.R:
+#'   tissue_markers <- load_tissue_markers()
+#'   results <- identify_all_celltypes(all_markers, tissue_markers$marker_lists, ...)
+#'
+#' @return list(reference_table, marker_lists)
+load_tissue_markers <- function() {
+  tissue <- tolower(trimws(get("tissue_type", envir = .GlobalEnv)))
+
+  if (!tissue %in% names(TISSUE_MARKER_FUNCTIONS)) {
+    stop(sprintf(
+      "Unsupported tissue_type: '%s'. Supported: %s",
+      tissue,
+      paste(names(TISSUE_MARKER_FUNCTIONS), collapse = ", ")
+    ))
+  }
+
+  markers_call <- TISSUE_MARKER_FUNCTIONS[[tissue]]()
+
+  cat(sprintf(
+    "✓ Loaded %s markers: %d genes across %d cell types\n",
+    tissue,
+    nrow(markers_call$reference_table),
+    length(markers_call$marker_lists)
+  ))
+
+  markers_call
 }
