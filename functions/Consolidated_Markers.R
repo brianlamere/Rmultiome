@@ -10,14 +10,9 @@
 #
 # To add a new tissue:
 #   1. Write a new function following the pattern below
-#   2. Add an entry to the TISSUE_MARKER_FUNCTIONS list
+#   2. Add an entry to the TISSUE_MARKER_FUNCTIONS list in Rmultiome-main.R
 #
-TISSUE_MARKER_FUNCTIONS <- list(
-  cortex  = cortex_consolidated_markers,
-  spleen  = spleen_consolidated_markers
-)
 # ============================================================================
-
 
 # ============================================================================
 # prefrontal cortex / cortical nuclei

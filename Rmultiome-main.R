@@ -38,3 +38,9 @@ source(file.path(Rmultiome_path, "functions", "Consolidated_Markers.R"))
 
 # multicore for things which might use it
 options(future.globals.maxSize = 48000 * 1024^2) 
+
+#toolkit-level settings
+TISSUE_MARKER_FUNCTIONS <- list(
+  cortex  = cortex_consolidated_markers,
+  spleen  = spleen_consolidated_markers
+)

@@ -114,9 +114,9 @@ init_project <- function(random_seed = 42,
                         doublet_rate_per_1000 = 8.0,
                         doublet_rate_sd = 0.015,
                         project_name = "multiome_project",
-			analysis_version = "1.1.0a",
-			species = "Homo sapiens",
-			tissue_type,
+                        analysis_version = "1.1.0a",
+                        species = "Homo sapiens",
+                        tissue_type,
                         genome_build = "hg38") {
 
   cat("\n=== Initializing Project ===\n")
@@ -126,15 +126,6 @@ init_project <- function(random_seed = 42,
   # Require system_settings
   if (!exists("project_export")) {
     stop("Source system_settings.R first!")
-  }
-
-  tissue_type_lc <- tolower(trimws(tissue_type))
-  if (!tissue_type_lc %in% names(TISSUE_MARKER_FUNCTIONS)) {
-    stop(sprintf(
-      "Unsupported tissue_type: '%s'. Supported: %s",
-      tissue_type,
-      paste(names(TISSUE_MARKER_FUNCTIONS), collapse = ", ")
-    ))
   }
 
   # Create directories
