@@ -2,6 +2,8 @@ source("/projects1/opioid2/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 init_project()
+hgd(port=8777, token=FALSE)
+
 #load object created at end of run_pipeline1.R
 preharmony_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
 
@@ -18,18 +20,21 @@ if (FALSE) {
 # PHASE 1: Clustering Parameter Selection
 # ============================================================================
 
-# === STEP 1: Check for technical bias in PCs ===
-pc_check <- check_pc_technical_bias(preharmony_obj, n_pcs = 50)
+# === STEP 1: Check for technical bias in RNA (PCA) and ATAC (LSI) reductions===
+pc_check <- check_reduction_technical_bias(preharmony_obj, n_comps = 50, reduction = "pca")
+lsi_check <- check_reduction_technical_bias(preharmony_obj, n_comps = 50, reduction = "lsi")
 
-hgd(port=8777, token=FALSE)
 print(pc_check$heatmap)
+print(lsi_check$heatmap)
 
 print(pc_check$lineplot)
+print(lsi_check$lineplot)
 
-# Decision: Exclude PC1 based on high technical correlation
+# Decision: Exclude PC1 and/or LSI1 based on high technical correlation
 
 # === STEP 2: Decide harmony settings ===
-# Based on PC bias check, decide which PCs to use
+# Based on technical bias check, decide which PCs to use
+#TODO: allow for using different dims for ATAC and RNA (eg keeping LSI1 and dropping PC1)
 
 harmony_settings <- list(
   dims_use = 2:50,
@@ -60,9 +65,9 @@ print(findElbow(harmony_obj))
 # === STEP 5: Run parameter sweep with metrics ===
 sweep_results <- run_parameter_sweep_plots(
   seurat_obj = harmony_obj,
-  dims_range = list(c(1:30),c(1:40)),
-  knn_values = c(30, 40),
-  res_values = c(0.16,0.18),
+  dims_range = list(c(1:19),c(1:20),c(1:23)),
+  knn_values = c(39),
+  res_values = c(0.2),
   alg = 3,                     # SLM algorithm (required parameter)
   cluster_seed = random_seed   # Reproducibility (required parameter)
 )

@@ -75,6 +75,161 @@ check_pc_technical_bias <- function(seurat_obj, n_pcs = 10, reduction = "pca") {
   list(heatmap = p1, lineplot = p2, cor_matrix = cor_matrix)
 }
 
+#' Check reduction-component correlations with technical covariates
+#'
+#' Reduction-agnostic replacement for check_pc_technical_bias(). Works on any
+#' dimensional reduction (pca, lsi, harmony, ...). Two things make it modality-
+#' neutral where the old function was RNA-biased:
+#'
+#'   1. Component labels are taken from the reduction's OWN embedding column
+#'      names, so an LSI run is labeled LSI_* and a PCA run PC_*. The plot can no
+#'      longer mislabel LSI components as "PC1, PC2, ..." the way the hardcoded
+#'      paste0("PC", ...) did.
+#'
+#'   2. The summary drops the "PC2 should be lower" editorializing. That assumed
+#'      every covariate behaves like RNA depth -- peak on component 1, decay
+#'      after -- which is only true for a covariate matched to the reduction's
+#'      dominant technical axis. A guest covariate (nucleosome_signal on a PCA
+#'      reduction, say) can legitimately peak anywhere. It is replaced by a
+#'      "peak component per covariate" table that reports where each technical
+#'      axis actually lives instead of presuming component 1.
+#'
+#' Covariates are tested as a MIXED RNA+ATAC set on purpose: a technical depth
+#' axis loads on one modality's depth and is flat elsewhere; a shared biological
+#' axis loads on both modalities' complexity together; the near-zero cross-modal
+#' cells are the negative control that distinguishes the two. Absent covariates
+#' are dropped by the availability filter, so projects that never computed (e.g.)
+#' nucleosome_signal still run.
+#'
+#' @param seurat_obj      Seurat object with the requested reduction computed.
+#' @param n_comps         Number of components to test (clamped to what exists).
+#' @param reduction       Name of reduction to use (default "pca").
+#' @param flag_threshold  |r| at/above which a component is flagged to inspect.
+#' @param line_threshold  Dashed reference line on the decay lineplot.
+#' @return (invisibly) list(heatmap, lineplot, cor_matrix)
+check_reduction_technical_bias <- function(seurat_obj, n_comps = 10,
+                                           reduction = "pca",
+                                           flag_threshold = 0.3,
+                                           line_threshold = 0.1) {
+  # Mixed RNA + ATAC covariates by design (see header). Add ATAC-specific
+  # quality proxies here (pct_reads_in_peaks, blacklist_ratio) if/when computed;
+  # the availability filter keeps them optional.
+  covariates <- c("percent.mt", "nCount_RNA", "nFeature_RNA", "nucleosome_signal",
+                  "TSS.enrichment", "nCount_ATAC", "nFeature_ATAC")
+  available_covariates <- covariates[covariates %in% colnames(seurat_obj@meta.data)]
+  if (length(available_covariates) == 0L) {
+    stop("check_reduction_technical_bias: none of the expected covariates are ",
+         "present in meta.data.")
+  }
+
+  # Pull embeddings; let component labels come from the DATA, not a hardcoded
+  # prefix. Clamp n_comps to what the reduction actually has, and say so loudly
+  # rather than letting the [, 1:n] index silently error or overrun.
+  emb <- Embeddings(seurat_obj, reduction = reduction)
+  n_avail <- ncol(emb)
+  if (n_comps > n_avail) {
+    warning(sprintf(
+      "check_reduction_technical_bias: requested %d components but reduction '%s' ",
+      n_comps, reduction),
+      sprintf("has only %d; clamping to %d.", n_avail, n_avail))
+    n_comps <- n_avail
+  }
+  emb <- emb[, seq_len(n_comps), drop = FALSE]
+  comp_labels <- colnames(emb)                       # e.g. "PC_1" / "LSI_1"
+
+  # Short label for titles: strip the trailing underscore off the reduction key,
+  # falling back to the (upper-cased) reduction name if the key is unset.
+  red_key <- tryCatch(Key(seurat_obj[[reduction]]), error = function(e) "")
+  reduction_label <- if (nzchar(red_key)) sub("_$", "", red_key) else toupper(reduction)
+
+  # Correlation matrix: components x covariates
+  cor_matrix <- matrix(NA_real_, nrow = n_comps, ncol = length(available_covariates),
+                       dimnames = list(comp_labels, available_covariates))
+  for (i in seq_len(n_comps)) {
+    for (j in seq_along(available_covariates)) {
+      cor_matrix[i, j] <- cor(emb[, i], seurat_obj@meta.data[[available_covariates[j]]],
+                              use = "complete.obs")
+    }
+  }
+
+  # Melt for ggplot; fix factor levels to row order so component 10 doesn't sort
+  # before component 2.
+  cor_df <- melt(cor_matrix)
+  colnames(cor_df) <- c("Component", "Covariate", "Correlation")
+  cor_df$Component <- factor(cor_df$Component, levels = comp_labels)
+
+  # Heatmap
+  p1 <- ggplot(cor_df, aes(x = Covariate, y = Component, fill = Correlation)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+                         midpoint = 0, limits = c(-1, 1)) +
+    geom_text(aes(label = sprintf("%.2f", Correlation)), size = 3) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = paste0(reduction_label,
+                        " Correlation with Technical Covariates - ",
+                        seurat_obj@project.name),
+         x = "Technical Covariate", y = paste(reduction_label, "Component"))
+
+  # Decay lineplot (absolute correlation). linewidth (not size) for current
+  # ggplot2; if on <3.4 change linewidth -> size.
+  cor_df$AbsCorrelation <- abs(cor_df$Correlation)
+  p2 <- ggplot(cor_df, aes(x = Component, y = AbsCorrelation,
+                           color = Covariate, group = Covariate)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = paste(reduction_label, "- Absolute Correlation by Component"),
+         x = paste(reduction_label, "Component"), y = "Absolute Correlation",
+         color = "Covariate") +
+    geom_hline(yintercept = line_threshold, linetype = "dashed", color = "gray50") +
+    annotate("text", x = n_comps * 0.8, y = line_threshold + 0.02,
+             label = sprintf("Threshold (|r| = %.2f)", line_threshold),
+             color = "gray50")
+
+  # ---- Modality-neutral summary ----
+  abs_mat <- abs(cor_matrix)
+
+  cat(sprintf("\n=== %s: Component 1 correlations (sorted |r|) ===\n", reduction_label))
+  print(round(sort(abs_mat[1, ], decreasing = TRUE), 3))
+
+  cat(sprintf("\n=== %s: Max |r| by component ===\n", reduction_label))
+  print(round(apply(abs_mat, 1, max), 3))
+
+  # Where each covariate PEAKS -- the modality-neutral replacement for
+  # "component 2 should be lower". Tells you where each technical axis actually
+  # lives instead of assuming it lives on component 1.
+  cat(sprintf("\n=== %s: Peak component per covariate ===\n", reduction_label))
+  peak_tbl <- data.frame(
+    covariate      = available_covariates,
+    peak_component = comp_labels[apply(abs_mat, 2, which.max)],
+    peak_abs_r     = round(apply(abs_mat, 2, max), 3),
+    row.names      = NULL,
+    stringsAsFactors = FALSE
+  )
+  peak_tbl <- peak_tbl[order(-peak_tbl$peak_abs_r), ]
+  print(peak_tbl, row.names = FALSE)
+
+  # Components worth inspecting: any at/above flag_threshold on any covariate,
+  # named with the responsible covariate and signed r.
+  max_by_comp <- apply(abs_mat, 1, max)
+  flagged_idx <- which(max_by_comp >= flag_threshold)
+  cat(sprintf("\n=== %s: Components with |r| >= %.2f (inspect, do not auto-drop) ===\n",
+              reduction_label, flag_threshold))
+  if (length(flagged_idx) == 0L) {
+    cat("  none\n")
+  } else {
+    for (i in flagged_idx) {
+      jmax <- which.max(abs_mat[i, ])
+      cat(sprintf("  %-8s  top: %-18s r = %+.2f\n",
+                  comp_labels[i], available_covariates[jmax], cor_matrix[i, jmax]))
+    }
+  }
+
+  invisible(list(heatmap = p1, lineplot = p2, cor_matrix = cor_matrix))
+}
+
 #' Define parameter sweep combinations
 #' @param dims_range List of dimension ranges (e.g., list(c(2:30), c(2:40)))
 #' @param knn_values Vector of k-nearest neighbors values
