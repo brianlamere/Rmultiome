@@ -1,4 +1,4 @@
-source("/projects1/opioid/Rmultiome/system_settings.R")
+source("/projects1/opioid2-nocb/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #The intent of this script is to be able to be run after you've selected all
@@ -24,7 +24,7 @@ pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 
 samplelist <- pipeline1_settings$sample
 
-EnsDbAnnos <- loadannotations()
+EnsDbAnnos <- loadannotations(ensdb = EnsDb.Hsapiens.v116)
 
 #########copy FROM here, to run in an IDE as a full block
 for (sample in samplelist) {
@@ -146,6 +146,6 @@ preharmony_obj <- post_merge_rna(merged_obj)
 #post-merge ATAC modality
 preharmony_obj <- post_merge_atac(preharmony_obj)
 
-saveRDS(preharmony_bj, file.path(rdsdir,"merged_preharmony.Rds"))
+saveRDS(preharmony_obj, file.path(rdsdir,"merged_preharmony.Rds"))
 
 cat("Now returning to QC processes.\n")

@@ -1,4 +1,4 @@
-source("/projects1/opioid2/Rmultiome/system_settings.R")
+source("/projects1/opioid2-nocb/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 init_project()
@@ -9,7 +9,7 @@ preharmony_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
 
 # here in case you're restarting and already have these settings
 # set to TRUE then skip to where you were
-if (FALSE) {
+if (TRUE) {
 	pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 	cluster_settings <- read_cluster_settings(cluster_settings_file)
 	celltype_settings <- read_celltype_settings(celltype_settings_file)
@@ -65,10 +65,11 @@ print(findElbow(harmony_obj))
 # === STEP 5: Run parameter sweep with metrics ===
 sweep_results <- run_parameter_sweep_plots(
   seurat_obj = harmony_obj,
-  dims_range = list(c(1:19),c(1:20),c(1:23)),
-  knn_values = c(39),
-  res_values = c(0.2),
+  dims_range = list(c(1:24)),
+  knn_values = c(32),
+  res_values = c(0.8,1.0,1.1,1.2,1.3,1.4),
   alg = 3,                     # SLM algorithm (required parameter)
+  plots = TRUE,                
   cluster_seed = random_seed   # Reproducibility (required parameter)
 )
 
@@ -83,9 +84,9 @@ print(sweep_results[order(sweep_results$n_clusters), ])
 # === STEP 6: USER INPUT - Set chosen parameters ===
 # After reviewing plots, set these to your chosen values:
 chosen_dims_min <- 1      # CHANGE THIS
-chosen_dims_max <- 40     # CHANGE THIS
-chosen_knn <- 44          # CHANGE THIS
-chosen_resolution <- 0.18 # CHANGE THIS
+chosen_dims_max <- 24     # CHANGE THIS
+chosen_knn <- 32          # CHANGE THIS
+chosen_resolution <- 1.1 # CHANGE THIS
 
 # === STEP 7: Save cluster settings ===
 cluster_settings <- data.frame(
@@ -144,9 +145,15 @@ saveRDS(chosen_obj, file.path(rdsdir, "clustered_obj.rds"))
 # Note: refer to lymphocyte_investigation.R for exclusion reason
 
 # Load consolidated markers
-cortex_markers <- readRDS(file.path(Rmultiome_path, "Cortex_Consolidated_Markers.rds"))
+#cortex_markers <- readRDS(file.path(Rmultiome_path, "Cortex_Consolidated_Markers.rds"))
+tissue_markers <- load_tissue_markers()
+
+#quick cheat test
+typing_results <- assign_celltype_from_dotplot(seurat_obj = chosen_obj, tissue_markers$marker_lists)
+print(typing_results, n = 50)
 
 # === STEP 10: Finding cluster markers ===
+
 
 DefaultAssay(chosen_obj) <- "RNA"
 
@@ -173,7 +180,7 @@ all_markers <- FindAllMarkers(
 # Use for automated typing
 results <- identify_all_celltypes(
   all_markers,
-  cortex_markers$marker_lists,  # Uses the simplified lists
+  tissue_markers$marker_lists,  # Uses the simplified lists
   min_markers = 2,
   min_score = 5,
   verbose = TRUE
