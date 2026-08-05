@@ -443,3 +443,27 @@ load_tissue_markers <- function() {
 
   markers_call
 }
+
+#' Check system memory availability
+#' @return Available memory in GB
+check_available_memory <- function() {
+  # Read /proc/meminfo
+  meminfo <- readLines("/proc/meminfo")
+
+  # Extract MemAvailable
+  avail_line <- grep("^MemAvailable:", meminfo, value = TRUE)
+  avail_kb <- as.numeric(gsub("^MemAvailable:\\s+(\\d+).*", "\\1", avail_line))
+
+  avail_gb <- avail_kb / 1024 / 1024
+  return(avail_gb)
+}
+
+#' Warn if memory is getting low
+check_memory_threshold <- function(threshold_gb = 50) {
+  avail <- check_available_memory()
+  if (avail < threshold_gb) {
+    warning(sprintf("Low memory warning: Only %.1f GB available (threshold: %d GB)",
+                   avail, threshold_gb))
+  }
+  return(avail)
+}

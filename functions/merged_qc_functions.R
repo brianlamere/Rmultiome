@@ -261,21 +261,73 @@ define_parameter_sweep <- function(dims_range, knn_values, res_values) {
   return(params)
 }
 
+# faster for purposes of sensitivity testing
+#TODO: insert function signature description here
+assign_celltype_from_dotplot <- function(seurat_obj, marker_lists, min_cells = 50,
+                                        min_score = 3, min_mean_pct = 2,
+                                         cluster_col = "seurat_clusters") {
+  assignments <- data.frame()
+
+  cluster_counts <- table(Idents(seurat_obj))
+  clusters_to_type <- names(cluster_counts)[
+    cluster_counts >= min_cells &
+    names(cluster_counts) != "singleton"
+  ]
+
+  # avoid subset() — select cells directly
+  cells_to_use <- colnames(seurat_obj)[Idents(seurat_obj) %in% clusters_to_type]
+  typing_obj <- seurat_obj[, cells_to_use]
+
+  for (celltype in names(marker_lists)) {
+    markers <- marker_lists[[celltype]]
+    dp <- DotPlot(typing_obj, features = markers)
+    dp_data <- dp$data %>%
+      group_by(id) %>%
+      summarize(
+        mean_exp = mean(avg.exp.scaled),
+        mean_pct = mean(pct.exp),
+        score = mean(avg.exp.scaled * pct.exp)
+      ) %>%
+      mutate(celltype = celltype)
+    assignments <- rbind(assignments, dp_data)
+  }
+
+  best <- assignments %>%
+    group_by(id) %>%
+    slice_max(score, n = 1) %>%
+    rename(cluster = id) %>%
+    mutate(
+        celltype = ifelse(score < min_score | mean_pct < min_mean_pct,
+            "Unassigned", celltype),
+        n_cells  = as.integer(cluster_counts[as.character(cluster)])
+    )
+
+  return(list(
+    assignments = best,
+    all_scores = assignments
+  ))
+}
+
 #' Run parameter sweep and display plots for visual inspection
 #' @param seurat_obj Harmonized Seurat object
 #' @param dims_range List of dimension ranges
 #' @param knn_values Vector of k values
 #' @param res_values Vector of resolution values
 #' @param alg Clustering algorithm
+#' @param plots boolean (default: TRUE) of whether to create dimplots during the sweep
+#' @param typing boolean (default: FALSE) of whether to do a quick typing check during sweep
 #' @param cluster_seed Random seed
 #' @return Data frame with basic results (for reference only)
-run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
-                                     res_values, plots = TRUE, alg, cluster_seed) {
+run_parameter_sweep <- function(seurat_obj, dims_range, knn_values, res_values, alg,
+                                     plots = TRUE, typing = FALSE, cluster_seed) {
 
   n_combos <- length(dims_range) * length(knn_values) * length(res_values)
   cat(sprintf("\n=== Parameter Sweep: %d combinations ===\n", n_combos))
-  cat("Plots will be displayed in browser\n\n")
+  if (plots) {
+    cat("Plots will be displayed in browser\n\n")
+  }
 
+  total_cells <- ncol(seurat_obj)
   results <- list()
   counter <- 1
 
@@ -316,7 +368,55 @@ run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
 
         cat(sprintf("%d clusters (%d singletons)\n", cluster_count, singleton_count))
 
-        # Store results
+        # ---------------------------------------------------------------
+        # TYPING BLOCK
+        # ---------------------------------------------------------------
+        if (typing) {
+          typing_result <- assign_celltype_from_dotplot(
+            seurat_obj   = obj_clustered,
+            marker_lists = tissue_markers$marker_lists
+          )
+
+          # Merge parameter metadata into assignments
+          sweep_row <- typing_result$assignments %>%
+            dplyr::rename(cluster_id = cluster) %>%
+            dplyr::mutate(
+              sweep_id    = counter,
+              dims_min    = dims_min,
+              dims_max    = dims_max,
+              knn         = knn,
+              res         = res,
+              n_clusters  = cluster_count,
+              n_singletons = singleton_count,
+              pct_of_total = n_cells / total_cells * 100
+            ) %>%
+            dplyr::select(
+              sweep_id, dims_min, dims_max, knn, res,
+              n_clusters, n_singletons,
+              cluster_id, n_cells, pct_of_total,
+              mean_exp, mean_pct, score, celltype
+            )
+
+          # Write: overwrite + header on first sweep, append thereafter
+          write.table(
+            sweep_row,
+            file      = param_sweep_typing_file,
+            append    = (counter > 1),
+            sep       = ",",
+            row.names = FALSE,
+            col.names = (counter == 1),
+            quote     = TRUE
+          )
+
+          #this should be percent of data assigned, not clusters, or should just not exist as
+          #an inline report at all, as comparing number of clusters assigned isn't very meaningful.
+          #e.g. could have 12 great clusters covering 98% of the data, with 50 tiny unassigned.
+          cat(sprintf("  Typed: %d clusters assigned, %d unassigned\n",
+                     sum(sweep_row$celltype != "Unassigned"),
+                     sum(sweep_row$celltype == "Unassigned")))
+        }
+
+        # Store basic sweep results
         results[[counter]] <- list(
           dims_min = dims_min,
           dims_max = dims_max,
@@ -336,16 +436,18 @@ run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
             ggtitle(plot_title)
 
           print(p)
+          rm(p)
           }
 
         # Clean up
-        rm(obj_clustered, p)
+        rm(obj_clustered)
         gc(verbose = FALSE)
 
         counter <- counter + 1
       }
 
       # Clean up FMMN result after all resolutions
+      # R auto garbage collection isn't great, bleed happens, make explicit
       rm(obj_fmmn)
       gc(verbose = FALSE, full = TRUE)
     }
@@ -385,26 +487,84 @@ load_sweep_result <- function(sweep_dir, dims_str, knn, res) {
   readRDS(filepath)
 }
 
-#' Check system memory availability
-#' @return Available memory in GB
-check_available_memory <- function() {
-  # Read /proc/meminfo
-  meminfo <- readLines("/proc/meminfo")
+#' Compare typing results across parameter sweep combinations
+#'
+#' Reads param_sweep_typing_file (written by run_parameter_sweep with
+#' typing = TRUE), filters out small clusters, and summarizes at the
+#' celltype level per sweep combination. Produces one row per
+#' sweep_id x celltype with weighted score, total cells, and cluster
+#' count — giving a single view of which parameter set best identified
+#' each population.
+#'
+#' @param min_pct_of_total Minimum percent of total cells for a cluster
+#'   to be included in the comparison (default 0.25, i.e. 250 cells in
+#'   a 100k dataset). Clusters below this are excluded from the summary
+#'   but were still typed — this is a reporting filter, not a typing
+#'   filter.
+#' @param typing_file Path to the sweep typing CSV. Defaults to
+#'   param_sweep_typing_file from system_settings.R.
+#' @return Data frame with one row per sweep_id x celltype, sorted by
+#'   sweep_id then descending pct_of_total_assigned.
+compare_typing_results <- function(min_pct_of_total = 0.25,
+                                   typing_file = param_sweep_typing_file) {
 
-  # Extract MemAvailable
-  avail_line <- grep("^MemAvailable:", meminfo, value = TRUE)
-  avail_kb <- as.numeric(gsub("^MemAvailable:\\s+(\\d+).*", "\\1", avail_line))
-
-  avail_gb <- avail_kb / 1024 / 1024
-  return(avail_gb)
-}
-
-#' Warn if memory is getting low
-check_memory_threshold <- function(threshold_gb = 50) {
-  avail <- check_available_memory()
-  if (avail < threshold_gb) {
-    warning(sprintf("Low memory warning: Only %.1f GB available (threshold: %d GB)",
-                   avail, threshold_gb))
+  if (!file.exists(typing_file)) {
+    stop(sprintf(
+      "Typing results file not found: %s\n",
+      "Run run_parameter_sweep(typing = TRUE) first.",
+      typing_file
+    ))
   }
-  return(avail)
+
+  raw <- read.csv(typing_file, stringsAsFactors = FALSE)
+
+  # Filter small clusters and Unassigned before aggregating
+  filtered <- raw %>%
+    dplyr::filter(
+      pct_of_total >= min_pct_of_total,
+      celltype != "Unassigned"
+    )
+
+  if (nrow(filtered) == 0) {
+    warning(sprintf(
+      "No clusters pass min_pct_of_total = %.2f%%. ",
+      "Try lowering the threshold.",
+      min_pct_of_total
+    ))
+    return(invisible(data.frame()))
+  }
+
+  # Aggregate to sweep_id x celltype
+  summary <- filtered %>%
+    dplyr::group_by(sweep_id, dims_min, dims_max, knn, res, celltype) %>%
+    dplyr::summarize(
+      n_clusters_assigned  = dplyr::n(),
+      n_cells_total        = sum(n_cells),
+      pct_of_total_assigned = sum(pct_of_total),
+      weighted_score       = sum(score * n_cells) / sum(n_cells),
+      mean_pct_expressed   = stats::weighted.mean(mean_pct, n_cells),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(sweep_id, dplyr::desc(pct_of_total_assigned))
+
+  # Also compute pct_unassigned per sweep for context
+  unassigned_summary <- raw %>%
+    dplyr::group_by(sweep_id) %>%
+    dplyr::summarize(
+      total_clusters      = dplyr::n(),
+      n_unassigned        = sum(celltype == "Unassigned"),
+      pct_unassigned_clusters = mean(celltype == "Unassigned") * 100,
+      .groups = "drop"
+    )
+
+  summary <- summary %>%
+    dplyr::left_join(unassigned_summary, by = "sweep_id")
+
+  cat(sprintf("\n=== Typing Comparison: %d sweep combinations ===\n",
+             dplyr::n_distinct(summary$sweep_id)))
+  cat(sprintf("Min cluster size filter: %.2f%% of total cells\n", min_pct_of_total))
+  cat(sprintf("Cell types represented: %s\n\n",
+             paste(sort(unique(summary$celltype)), collapse = ", ")))
+
+  return(summary)
 }

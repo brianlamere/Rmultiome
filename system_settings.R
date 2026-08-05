@@ -70,6 +70,9 @@ harmony_settings_file <- file.path(project_export, "harmony_settings.Rds")
 #directory to store temporary files used during parameter sweep
 sweep_dir <- file.path(tmpfiledir, "param_sweep")
 
+#temporary file for typing during parameter sweep
+param_sweep_typing_file <- file.path(tmpfiledir, "param_sweep_typing.csv")
+
 # Multiomic, needing to have two different reductions available
 # Defining here only so that they aren't defined in a script
 reduction.save.RNA = "harmony_RNA"
