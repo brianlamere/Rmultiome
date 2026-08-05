@@ -1,4 +1,4 @@
-source("/projects1/opioid2-nocb/Rmultiome/system_settings.R")
+source("/projects1/opioid2/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 init_project()
@@ -86,7 +86,7 @@ print(sweep_results[order(sweep_results$n_clusters), ])
 chosen_dims_min <- 1      # CHANGE THIS
 chosen_dims_max <- 24     # CHANGE THIS
 chosen_knn <- 32          # CHANGE THIS
-chosen_resolution <- 1.1 # CHANGE THIS
+chosen_resolution <- 1.3 # CHANGE THIS
 
 # === STEP 7: Save cluster settings ===
 cluster_settings <- data.frame(
@@ -150,7 +150,7 @@ tissue_markers <- load_tissue_markers()
 
 #quick cheat test
 typing_results <- assign_celltype_from_dotplot(seurat_obj = chosen_obj, tissue_markers$marker_lists)
-print(typing_results, n = 50)
+print(typing_resultsassignments, n = 50)
 
 # === STEP 10: Finding cluster markers ===
 

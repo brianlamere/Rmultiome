@@ -31,7 +31,7 @@ pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 EnsDbAnnos <- loadannotations()
 
 #step 1-2: pick your sample name, from the listing of files in cra_outdir
-mysample <- "LG31"
+mysample <- "LG22"
 
 # Step 1-3: Create base QC object
 qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
