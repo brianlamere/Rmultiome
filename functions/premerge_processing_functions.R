@@ -1,6 +1,6 @@
 #Functions that are part of premerge processing.  Nothing here should be steps for a merged object
 
-#we're using v86, though v114 is available it is from this month.
+#can switch from v86 to v116, which I made
 loadannotations <- function(ensdb = EnsDb.Hsapiens.v116) {
   annotation <- GetGRangesFromEnsDb(ensdb = ensdb)
   seqlevels(annotation) <- paste0('chr', seqlevels(annotation))
@@ -534,9 +534,9 @@ doubletRemoveSample <- function(seurat_obj, pipeline1_settings = NULL, qc_report
   if (qc_report) {
     cat(sprintf("\n=== scDblFinder: %s ===\n", sample_name))
     cat(sprintf("Cells before doublet removal: %d\n", n_cells))
-    cat(sprintf("Expected doublets: %.1f (%.2f%% of %.3f cells)\n",
+    cat(sprintf("Expected doublets: %.2f (%.2f%% of %.2f cells)\n",
     est_doubs, dbr_rate, n_cells))
-    cat(sprintf("Running scDblFinder with dbr=%.4f, dbr.sd=%.3f\n",
+    cat(sprintf("Running scDblFinder with dbr=%.3f, dbr.sd=%.3f\n",
         doublet_rate_per_1000, doublet_rate_sd))
   }
 

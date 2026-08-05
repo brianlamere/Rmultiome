@@ -120,7 +120,7 @@ cortex_consolidated_markers <- function() {
   )
 
   endothelial_markers <- data.frame(
-    gene = c("FLT1", "CLDN5", "KDR", "VWF"),
+    gene = c("FLT1", "CLDN5", "KDR"),
     source = rep("Mathys_2019", 4),
     confidence = c("high", "high", "high", "medium"),
     notes = "Vascular endothelial cells; CLDN5 = tight junctions (BBB)",
@@ -396,11 +396,10 @@ spleen_consolidated_markers <- function() {
   )
 
   endothelial_markers <- data.frame(
-    gene = c("PECAM1", "VWF", "FLT1", "CDH5", "CLDN5"),
-    source = c(rep("General_consensus", 2), rep("Madissoon_2020", 3)),
-    confidence = rep("high", 5),
+    gene = c("PECAM1", "FLT1", "CDH5", "CLDN5"),
+    source = c(rep("General_consensus", 2), rep("Madissoon_2020", 2)),
+    confidence = rep("high", 4),
     notes = c("CD31 (PECAM1) - pan-endothelial",
-              "VWF - endothelial and megakaryocytes",
               "VEGFR1 (FLT1) - vascular endothelial",
               "VE-cadherin (CDH5) - adherens junctions",
               "Claudin-5 - tight junctions"),
@@ -435,13 +434,15 @@ spleen_consolidated_markers <- function() {
   )
 
   platelet_markers <- data.frame(
-    gene = c("PPBP", "PF4", "GP9", "ITGA2B"),
-    source = rep("General_consensus", 4),
-    confidence = rep("high", 4),
+    gene = c("PPBP", "PF4", "GP9", "ITGA2B","SNAP23",
+        "HSPD1","HSPH1","HSP90AB1"),
+    source = rep("General_consensus", 8),
+    confidence = rep("high", 8),
     notes = c("CXCL7 (PPBP) - definitive platelet",
               "CXCL4 (PF4) - definitive platelet",
               "GP9 - platelet surface glycoprotein",
-              "CD41 (ITGA2B) - platelet/megakaryocyte"),
+              "CD41 (ITGA2B) - platelet/megakaryocyte",
+              "SNAP23", "HSPD1","HSPH1","HSP90AB1"),
     stringsAsFactors = FALSE
   )
 
@@ -497,10 +498,10 @@ spleen_consolidated_markers <- function() {
     DC_cDC1                 = c("CLEC9A", "XCR1", "CADM1"),
     DC_cDC2                 = c("CLEC10A", "CD1C", "FCER1A"),
     DC_Plasmacytoid         = c("LILRA4", "CLEC4C", "IL3RA"),
-    Endothelial             = c("PECAM1", "VWF", "CDH5", "FLT1"),
+    Endothelial             = c("PECAM1", "CDH5", "FLT1"),
     Stromal_FRC             = c("PDPN", "CCL19", "CCL21", "CXCL13"),
     Contamination_RBC       = c("HBA1", "HBA2", "HBB", "ALAS2"),
-    Contamination_Platelet  = c("PPBP", "PF4", "GP9", "ITGA2B"),
+    Contamination_Platelet  = c("PPBP", "PF4", "GP9", "ITGA2B","SNAP23","HSPD1"),
     Contamination_Neutrophil = c("FCGR3B", "CXCR2", "S100A12", "CSF3R")
   )
 

@@ -116,7 +116,7 @@ init_project <- function(random_seed = 42,
                         project_name = "multiome_project",
                         analysis_version = "1.1.0a",
                         species = "Homo sapiens",
-                        tissue_type,
+                        tissue_type = "cortex",
                         genome_build = "hg38") {
 
   cat("\n=== Initializing Project ===\n")
@@ -201,11 +201,14 @@ analysis_date <- "%s"
   source(settings_path, local = .GlobalEnv)
 
   cat("\nProject settings loaded:\n")
-  cat(sprintf("  random_seed = %d\n", random_seed))
-  cat(sprintf("  use_cellbender = %s\n", use_cellbender))
-  cat(sprintf("  use_scdblfinder = %s\n", use_scdblfinder))
-  cat(sprintf("  doublet_rate_per_1000 = %.1f\n", doublet_rate_per_1000))
-  cat(sprintf("  project_name = %s\n", project_name))
+  cat(sprintf("  random_seed = %d\n", .GlobalEnv$random_seed))
+  cat(sprintf("  use_cellbender = %s\n", .GlobalEnv$use_cellbender))
+  cat(sprintf("  use_scdblfinder = %s\n", .GlobalEnv$use_scdblfinder))
+  cat(sprintf("  doublet_rate_per_1000 = %.3f\n", .GlobalEnv$doublet_rate_per_1000))
+  cat(sprintf("  doublet_rate_sd = %.3f\n", .GlobalEnv$doublet_rate_sd))
+  cat(sprintf("  tissue_type = %s\n", .GlobalEnv$tissue_type))
+  cat(sprintf("  project_name = %s\n", .GlobalEnv$project_name))
+  cat(sprintf("  genome_build = %s\n", .GlobalEnv$genome_build))
 
   cat("\n=== Ready for QC ===\n\n")
 
@@ -216,6 +219,7 @@ analysis_date <- "%s"
     use_scdblfinder = use_scdblfinder,
     doublet_rate_per_1000 = doublet_rate_per_1000,
     doublet_rate_sd = doublet_rate_sd,
+    tissue_type = tissue_type,
     project_name = project_name,
     genome_build = genome_build,
     standard_chroms = standard_chroms

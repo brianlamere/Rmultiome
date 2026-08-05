@@ -290,7 +290,9 @@ identify_all_celltypes <- function(all_markers,
     conflicts_to_print <- conflicts %>%
       ungroup() %>%
       select(cluster, celltype, confidence, score) %>%
-      as.data.frame()
+      #bug? 
+      #as.data.frame()
+      data.frame()
 
     print(conflicts_to_print)
     cat("\nReview these clusters manually.\n")
@@ -364,6 +366,7 @@ apply_celltype_labels <- function(seurat_obj,
 
 # faster for purposes of sensitivity testing
 assign_celltype_from_dotplot <- function(seurat_obj, marker_lists, min_cells = 50,
+                                        min_score = 3, min_mean_pct = 2,
                                          cluster_col = "seurat_clusters") {
   assignments <- data.frame()
 
@@ -394,7 +397,8 @@ assign_celltype_from_dotplot <- function(seurat_obj, marker_lists, min_cells = 5
   best <- assignments %>%
     group_by(id) %>%
     slice_max(score, n = 1) %>%
-    rename(cluster = id)
+    rename(cluster = id) %>%
+    mutate(celltype = ifelse(score < min_score | mean_pct < min_mean_pct, "Unassigned", celltype))
 
   return(list(
     assignments = best,
