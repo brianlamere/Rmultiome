@@ -270,11 +270,11 @@ define_parameter_sweep <- function(dims_range, knn_values, res_values) {
 #' @param cluster_seed Random seed
 #' @return Data frame with basic results (for reference only)
 run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
-                                     res_values, alg, cluster_seed) {
+                                     res_values, plots = TRUE, alg, cluster_seed) {
 
   n_combos <- length(dims_range) * length(knn_values) * length(res_values)
   cat(sprintf("\n=== Parameter Sweep: %d combinations ===\n", n_combos))
-  cat("Plots will be displayed on workspace 9 (Hyprland)\n\n")
+  cat("Plots will be displayed in browser\n\n")
 
   results <- list()
   counter <- 1
@@ -295,7 +295,7 @@ run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
 
       # INNER LOOP: resolutions (reuse FMMN result)
       for (res in res_values) {
-        cat(sprintf("[%d/%d] dims=%s, knn=%d, res=%.3f ... ",
+        cat(sprintf("Clustering loop: [%d/%d] dims=%s, knn=%d, res=%.3f ... ",
                    counter, n_combos, dims_str, knn, res))
 
         # Copy FMMN result and cluster
@@ -327,14 +327,16 @@ run_parameter_sweep_plots <- function(seurat_obj, dims_range, knn_values,
           n_singletons = singleton_count
         )
 
-        plot_title <- sprintf("dims=%s, knn=%d, res=%.3f\n%d clusters (%d singletons)",
+        if (plots) {
+          plot_title <- sprintf("dims=%s, knn=%d, res=%.3f\n%d clusters (%d singletons)",
                              dims_str, knn, res, cluster_count, singleton_count)
 
-        p <- DimPlot(obj_clustered, reduction = "wnn.umap",
+          p <- DimPlot(obj_clustered, reduction = "wnn.umap",
                     group.by = "seurat_clusters", label = TRUE, raster = FALSE) +
-          ggtitle(plot_title)
+            ggtitle(plot_title)
 
-        print(p)
+          print(p)
+          }
 
         # Clean up
         rm(obj_clustered, p)
