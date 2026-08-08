@@ -481,29 +481,41 @@ spleen_consolidated_markers <- function() {
     neutrophil_markers      %>% dplyr::mutate(celltype = "Contamination_Neutrophil")
   )
 
-  marker_lists <- list(
-    T_cell_Pan              = c("CD3D", "CD3E", "TRAC"),
-    T_CD4                   = c("CD4", "IL7R", "CCR7"),
-    T_CD8                   = c("CD8A", "CD8B", "GZMK"),
-    T_Regulatory            = c("FOXP3", "IL2RA", "IKZF2"),
-    T_GammaDelta            = c("TRGC2", "TRDC"),
-    B_cell_Pan              = c("MS4A1", "CD19", "PAX5", "CD79A"),
-    B_GerminalCenter        = c("BCL6", "AICDA", "CXCR5"),
-    B_MarginalZone          = c("FCRL4", "FCRL5"),
-    B_Plasma                = c("MZB1", "SDC1", "JCHAIN", "PRDM1"),
-    NK_cell                 = c("NCAM1", "KLRB1", "GNLY", "NKG7", "KLRD1"),
-    Monocyte_Classical      = c("CD14", "LYZ", "FCN1", "S100A8", "S100A9"),
-    Monocyte_NonClassical   = c("FCGR3A", "CX3CR1", "CDKN1C"),
-    Macrophage_RedPulp      = c("VSIG4", "SLC40A1", "HMOX1", "TIMD4", "FOLR2"),
-    DC_cDC1                 = c("CLEC9A", "XCR1", "CADM1"),
-    DC_cDC2                 = c("CLEC10A", "CD1C", "FCER1A"),
-    DC_Plasmacytoid         = c("LILRA4", "CLEC4C", "IL3RA"),
-    Endothelial             = c("PECAM1", "CDH5", "FLT1"),
-    Stromal_FRC             = c("PDPN", "CCL19", "CCL21", "CXCL13"),
-    Contamination_RBC       = c("HBA1", "HBA2", "HBB", "ALAS2"),
-    Contamination_Platelet  = c("PPBP", "PF4", "GP9", "ITGA2B","SNAP23","HSPD1"),
-    Contamination_Neutrophil = c("FCGR3B", "CXCR2", "S100A12", "CSF3R")
-  )
+marker_lists <- list(
+  # T cells — from empirical FindMarkers on cluster 3
+  T_CD4 = c("CD247", "BCL11B", "THEMIS", "SKAP1", "ITK",
+             "CD4", "IL7R"),
+  T_CD8 = c("CD247", "BCL11B", "CD8A", "CD8B", "GZMK",
+             "NKG7", "GNLY"),
+
+  # B cells — keep what's scoring
+  B_cell_Pan      = c("MS4A1", "CD19", "PAX5", "CD79A"),
+  B_GerminalCenter = c("BCL6", "AICDA", "CXCR5"),
+  B_MarginalZone  = c("FCRL4", "FCRL5"),
+  B_Plasma        = c("MZB1", "SDC1", "JCHAIN", "PRDM1"),
+
+  # Innate
+  NK_cell  = c("NCAM1", "KLRB1", "GNLY", "NKG7", "KLRD1"),
+
+  # Myeloid — collapsed to Level 2
+  Monocyte = c("CD14", "LYZ", "FCN1", "S100A8",
+               "S100A9", "CX3CR1", "CDKN1C"),
+  DC       = c("CLEC9A", "XCR1", "CLEC10A", "CD1C",
+               "LILRA4", "CLEC4C"),
+  Macrophage_RedPulp = c("VSIG4", "SLC40A1", "HMOX1",
+                          "TIMD4", "FOLR2"),
+
+  # Structural
+  Endothelial = c("CLDN5", "PECAM1", "FLT1", "CDH5"),
+  Stromal_FRC = c("PDPN", "CCL19", "CCL21", "CXCL13"),
+
+  # Contamination — unchanged
+  Contamination_RBC      = c("HBA1", "HBA2", "HBB", "ALAS2"),
+  Contamination_Platelet = c("PPBP", "PF4", "GP9", "ITGA2B",
+                              "SNAP23", "HSPD1"),
+  Contamination_Neutrophil = c("FCGR3B", "CXCR2", "S100A12",
+                                "CSF3R")
+)
 
   list(reference_table = reference_table, marker_lists = marker_lists)
 }
