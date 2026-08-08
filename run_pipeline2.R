@@ -1,4 +1,4 @@
-source("/projects1/opioid/Rmultiome/system_settings.R")
+source("/projects1/opioid-nocb/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 init_project()
 

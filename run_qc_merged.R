@@ -66,8 +66,8 @@ print(findElbow(harmony_obj))
 sweep_results <- run_parameter_sweep_plots(
   seurat_obj = harmony_obj,
   dims_range = list(c(1:24)),
-  knn_values = c(32),
-  res_values = c(0.8,1.0,1.1,1.2,1.3,1.4),
+  knn_values = c(20,24,32),
+  res_values = c(0.8,1.0,1.2),
   alg = 3,                     # SLM algorithm (required parameter)
   plots = TRUE,                
   cluster_seed = random_seed   # Reproducibility (required parameter)

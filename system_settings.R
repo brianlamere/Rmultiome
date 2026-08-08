@@ -2,7 +2,7 @@
 # The settings in this file are very specific to installation and project!
 
 # Working directory that has everything in it.
-project_base_dir <- "/projects1/opioid2"
+project_base_dir <- "/projects1/opioid2-nocb"
 
 # if you downloaded a cellmarker csv from here:
 # http://bio-bigdata.hrbmu.edu.cn/CellMarker/CellMarkerSearch.jsp?index_species=Human&index_tissue=Brain
@@ -29,10 +29,10 @@ atacfilename <- "atac_fragments.tsv.gz"
 Rmultiome_path <- file.path(project_base_dir, "Rmultiome")
 
 # Project cellranger-arc output directory
-cra_outdir <- file.path(project_base_dir, "cra_out")
+cra_outdir <- file.path(project_base_dir, "cra_out/")
 
 # Project cellbender data directory
-cb_datadir <- file.path(project_base_dir, "cb_data")
+cb_datadir <- file.path(project_base_dir, "cb_data/")
 
 # Vault of rds files saved at different milestones
 rdsdir <- file.path(project_base_dir, "vault")

@@ -1,14 +1,15 @@
-source("/projects1/opioid2/Rmultiome/system_settings.R")
+source("/projects1/opioid2-nocb/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #Step 1-1: set up your space and list the options for sample names
 init_project(
   random_seed = 42,
-  use_cellbender = TRUE,
+  use_cellbender = FALSE,
   use_scdblfinder = TRUE,
   doublet_rate_per_1000 = 0.8,
   doublet_rate_sd = 0.015,
-  project_name = "opioid_hiv_multiome",
+  tissue_type = "spleen",
+  project_name = "opioid2",
   genome_build = "hg38"
 )
 # init_project() # if resuming
@@ -31,7 +32,7 @@ pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 EnsDbAnnos <- loadannotations()
 
 #step 1-2: pick your sample name, from the listing of files in cra_outdir
-mysample <- "LG31"
+mysample <- "LG38"
 
 # Step 1-3: Create base QC object
 qc_obj <- base_qc_object(mysample, EnsDbAnnos, cb_report="display")
@@ -50,17 +51,17 @@ my_trimming_settings <- list(
   sample = mysample,
   # ATAC counts
   min_nCount_ATAC = 200,
-  max_nCount_ATAC = 10000,
+  max_nCount_ATAC = 6000,
   # RNA counts
-  min_nCount_RNA = 125,
-  max_nCount_RNA = 3000,
+  min_nCount_RNA = 100,
+  max_nCount_RNA = 1500,
   # Nucleosome signal (nss)
-  min_nss = 0.1,
+  min_nss = 0.15,
   max_nss = 1.4,
   # % mitochondrial
   max_percentMT = 30,
   # TSS enrichment
-  min_TSS = .75, # 
+  min_TSS = .5, # 
   max_TSS = 7.5  # 
 )
 
@@ -94,8 +95,8 @@ saveRDS(pipeline1_settings, pipeline1_settings_file)
 
 my_kde_settings <- list(
   sample = mysample,
-  atac_percentile = 0.965,
-  rna_percentile = 0.965,
+  atac_percentile = 0.97,
+  rna_percentile = 0.97,
   combine_method = "intersection"
 )
 

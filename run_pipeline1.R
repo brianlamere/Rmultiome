@@ -24,7 +24,8 @@ pipeline1_settings <- init_pipeline1_settings(pipeline1_settings_file)
 
 samplelist <- pipeline1_settings$sample
 
-EnsDbAnnos <- loadannotations(ensdb = EnsDb.Hsapiens.v116)
+#EnsDbAnnos <- loadannotations(ensdb = EnsDb.Hsapiens.v116)
+EnsDbAnnos <- loadannotations(ensdb = EnsDb.Hsapiens.v86)
 
 #########copy FROM here, to run in an IDE as a full block
 for (sample in samplelist) {
