@@ -1,8 +1,11 @@
-source("/projects1/opioid2-nocb/Rmultiome/system_settings.R")
+source("/projects1/opioid2/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 init_project()
 hgd(port=8777, token=FALSE)
+
+#load consolidated markers for globally defined tissue type
+tissue_markers <- load_tissue_markers()
 
 #load object created at end of run_pipeline1.R
 preharmony_obj <- readRDS(file.path(rdsdir,"merged_preharmony.Rds"))
@@ -63,13 +66,14 @@ saveRDS(harmony_obj, file.path(rdsdir, "harmonized.rds"))
 print(findElbow(harmony_obj))
 
 # === STEP 5: Run parameter sweep with metrics ===
-sweep_results <- run_parameter_sweep_plots(
+sweep_results <- run_parameter_sweep(
   seurat_obj = harmony_obj,
   dims_range = list(c(1:24)),
   knn_values = c(20,24,32),
   res_values = c(0.8,1.0,1.2),
   alg = 3,                     # SLM algorithm (required parameter)
-  plots = TRUE,                
+  plots = FALSE,                
+  typing = TRUE,
   cluster_seed = random_seed   # Reproducibility (required parameter)
 )
 
@@ -81,12 +85,15 @@ write.csv(sweep_results, file.path(tmpfiledir, "param_sweep_results.csv"),
 cat("Results sorted by cluster count:\n")
 print(sweep_results[order(sweep_results$n_clusters), ])
 
+# print report comparing quick clustering outcomes
+compare_typing_results()
+
 # === STEP 6: USER INPUT - Set chosen parameters ===
 # After reviewing plots, set these to your chosen values:
 chosen_dims_min <- 1      # CHANGE THIS
 chosen_dims_max <- 24     # CHANGE THIS
 chosen_knn <- 32          # CHANGE THIS
-chosen_resolution <- 1.1 # CHANGE THIS
+chosen_resolution <- 1.3 # CHANGE THIS
 
 # === STEP 7: Save cluster settings ===
 cluster_settings <- data.frame(
@@ -140,20 +147,15 @@ saveRDS(chosen_obj, file.path(rdsdir, "clustered_obj.rds"))
 
 # ============================================================================
 # PHASE 2: Cell Type Annotation
+# TODO: to be adjusted based on quick typing during sweeps...
+# assume major restructuring after this line
 # ============================================================================
-
-# Note: refer to lymphocyte_investigation.R for exclusion reason
-
-# Load consolidated markers
-#cortex_markers <- readRDS(file.path(Rmultiome_path, "Cortex_Consolidated_Markers.rds"))
-tissue_markers <- load_tissue_markers()
 
 #quick cheat test
 typing_results <- assign_celltype_from_dotplot(seurat_obj = chosen_obj, tissue_markers$marker_lists)
-print(typing_results, n = 50)
+print(typing_resultsassignments, n = 50)
 
 # === STEP 10: Finding cluster markers ===
-
 
 DefaultAssay(chosen_obj) <- "RNA"
 

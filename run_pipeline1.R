@@ -1,4 +1,4 @@
-source("/projects1/opioid2-nocb/Rmultiome/system_settings.R")
+source("/projects1/opioid2/Rmultiome/system_settings.R")
 source(file.path(Rmultiome_path, "Rmultiome-main.R"))
 
 #The intent of this script is to be able to be run after you've selected all
